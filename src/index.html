@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>ANURA SYSTEMS</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260614" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    /* ═══════════════════════════════════════════════════
+       ANURA SYSTEMS — Placeholder
+       Act 1 gate only. Full rebuild pending vision lock.
+       ═══════════════════════════════════════════════════ */
+
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --void-000: #0D0F12;
+      --mist-100: #1A1D24;
+      --spectrum-white: #FFFFFF;
+      --neon-cyan-core: #00F3FF;
+      --ghost-glow: rgba(0, 243, 255, 0.35);
+      --embers-amber: #D4AF37;
+      --font-display: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
+      --font-mono: 'Share Tech Mono', 'Space Mono', 'Courier New', monospace;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--void-000);
+      color: var(--spectrum-white);
+      font-family: var(--font-mono);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Loading Gate ── */
+    #loading-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+      opacity: 1;
+      visibility: visible;
+      transition:
+        opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #loading-gate.dismissed {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .crt-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+      background:
+        radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.62) 100%),
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.03) 2px, rgba(255, 255, 255, 0.03) 4px);
+      animation: crt-flicker 0.08s infinite alternate;
+    }
+
+    @keyframes crt-flicker {
+      0%   { opacity: 0.92; }
+      25%  { opacity: 1.0; }
+      50%  { opacity: 0.96; }
+      75%  { opacity: 0.99; }
+      100% { opacity: 0.94; }
+    }
+
+    .gate-module {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .frog-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      background: transparent;
+    }
+
+    .gate-readout {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 0.75rem;
+      white-space: nowrap;
+    }
+
+    .instr-text {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.86);
+      text-shadow: 0 0 4px rgba(255, 255, 255, 0.95), 0 0 12px rgba(255, 255, 255, 0.65), 0 0 24px rgba(255, 255, 255, 0.35);
+    }
+
+    .pct-counter {
+      min-width: 2.8ch;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      text-align: right;
+      text-shadow: 0 0 4px rgba(255, 255, 255, 0.95), 0 0 12px rgba(255, 255, 255, 0.75), 0 0 24px rgba(255, 255, 255, 0.45);
+    }
+
+    .progress-track {
+      width: 260px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 1px;
+      overflow: hidden;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.18), inset 0 0 6px rgba(255, 255, 255, 0.08);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #ffffff;
+      border-radius: 1px;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.95), 0 0 22px rgba(255, 255, 255, 0.65), 0 0 34px rgba(255, 255, 255, 0.35);
+      transition: width 0.15s linear;
+    }
+
+    /* ── Main Website (empty) ── */
+    #main-website {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      width: 100vw;
+      height: 100vh;
+      background: var(--void-000);
+    }
+
+    #canvas-3d-container {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <!-- ═══════════════════════════════════════
+       ACT 1: THE GATE
+       ═══════════════════════════════════════ -->
+  <div id="loading-gate">
+    <div class="crt-overlay"></div>
+    <div class="gate-module">
+      <div class="frog-wrap"></div>
+      <div class="gate-readout">
+        <span class="instr-text" id="instr-text">STANDBY...</span>
+        <span class="pct-counter" id="pct-counter">00%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       MAIN WORLD — empty, awaiting rebuild
+       ═══════════════════════════════════════ -->
+  <section id="main-website">
+    <div id="canvas-3d-container"></div>
+  </section>
+
+  <script>
+    // Minimal placeholder — no 3D scene
+    // Full rebuild starts after vision lock.
+    (function () {
+      "use strict";
+
+      var gate = document.getElementById("loading-gate");
+      var instr = document.getElementById("instr-text");
+      var pct = document.getElementById("pct-counter");
+      var bar = document.getElementById("progress-bar");
+
+      var phrases = [
+        "STANDBY...",
+        "AWAITING_CREATOR...",
+        "VISION_LOCK_PENDING...",
+        "STANDBY..."
+      ];
+
+      function update(value) {
+        var safe = Math.max(0, Math.min(100, value));
+        pct.textContent = String(Math.round(safe)).padStart(2, "0") + "%";
+        bar.style.width = safe + "%";
+        instr.textContent = phrases[Math.min(phrases.length - 1, Math.floor(safe / (100 / phrases.length)))];
+      }
+
+      // Simulate a brief load then dismiss
+      var progress = 0;
+      var loader = setInterval(function () {
+        progress += Math.random() * 18;
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(loader);
+          update(100);
+          setTimeout(function () {
+            gate.classList.add("dismissed");
+            window.dispatchEvent(new CustomEvent("anura:gateComplete"));
+          }, 800);
+        } else {
+          update(progress);
+        }
+      }, 200);
+    })();
+  </script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

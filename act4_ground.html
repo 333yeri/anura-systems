@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ANURA – Act 4 Ground Test</title>
+  <style>
+    body,html{margin:0;padding:0;overflow:hidden;background:#000;}
+    canvas{display:block;}
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js"></script>
+</head>
+<body>
+<script>
+  // Scene, camera, renderer
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+  camera.position.set(5,2,5);
+  camera.lookAt(0,0,0);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // OrbitControls for testing
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  // Ground – circular plane with mud+grass texture
+  const textureLoader = new THREE.TextureLoader();
+  const groundTex = textureLoader.load('https://raw.githubusercontent.com/xxgonzalo/threejs-ground-texture/main/mud-grass.jpg');
+  groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+  groundTex.repeat.set(16,16); // tile density
+  const groundMat = new THREE.MeshStandardMaterial({map:groundTex});
+
+  const groundGeo = new THREE.CircleGeometry(30,64);
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Simple sky – dark blue/grey gradient via HemisphereLight
+  const hemiLight = new THREE.HemisphereLight(0x2a3a5f, 0x111122, 0.8);
+  scene.add(hemiLight);
+
+  // Star field – static particle system
+  const starCount = 500;
+  const starGeo = new THREE.BufferGeometry();
+  const positions = new Float32Array(starCount*3);
+  for(let i=0;i<starCount;i++){
+    const radius = 80;
+    const theta = Math.random()*2*Math.PI;
+    const phi = Math.acos(2*Math.random()-1);
+    const x = radius*Math.sin(phi)*Math.cos(theta);
+    const y = radius*Math.cos(phi);
+    const z = radius*Math.sin(phi)*Math.sin(theta);
+    positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=z;
+  }
+  starGeo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  const starMat = new THREE.PointsMaterial({color:0xffffff,size:0.4});
+  const stars = new THREE.Points(starGeo,starMat);
+  scene.add(stars);
+
+  // Resize handling
+  window.addEventListener('resize',()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+  });
+
+  // Render loop
+  function animate(){
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene,camera);
+  }
+  animate();
+</script>
+</body>
+</html>

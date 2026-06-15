@@ -1,0 +1,15 @@
+{
+  "name": "anura-systems",
+  "version": "0.1.0",
+  "description": "Interactive 3D Awwwards-level site",
+  "main": "src/js/main.js",
+  "scripts": {
+    "dev": "serve ./src -s -l 3000",
+    "start": "npm run dev"
+  },
+  "dependencies": {
+    "three": "^0.154.0",
+    "gsap": "^3.11.0",
+    "serve": "^14.2.0"
+  }
+}
