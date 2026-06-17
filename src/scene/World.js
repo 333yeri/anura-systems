@@ -1,7 +1,8 @@
 // Anura Systems — persistent 3D swamp forest scene
 // Brand DNA: dark swamp, phosphor green accents, ember amber fire,
-// low-poly ~30k tris, no external assets. Three.js r0.160 API.
+// PBR-shaded ~30k tris, GLB assets for trees. Three.js r0.160 API.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Brand palette ──────────────────────────────────────────────────────────
 const VOID_BG     = 0x0D0F12; // void-000
@@ -58,8 +59,9 @@ export class World {
     this.setupLights();
     this.setupFog();
     this.createGround();
-    this.createForest();
-    this.createPathLanterns();  // small warm glow markers along the path
+    this.createForest();              // procedural fallback (will be visually overlaid by GLBs)
+    this.loadGLBTrees();              // async — PBR trees land once loaded
+    this.createPathLanterns();        // small warm glow markers along the path
     this.createMushrooms();
     this.createCampfire();
     this.createStars();
@@ -92,27 +94,34 @@ export class World {
   // ─── Global lighting & atmosphere ────────────────────────────────────────
   setupLights() {
     // Soft cold ambient — lets dark materials be faintly visible
-    const ambient = new THREE.AmbientLight(0x3a4a5a, 1.6);
+    const ambient = new THREE.AmbientLight(0x5a6a7a, 2.4);
     this.scene.add(ambient);
 
     // Hemisphere — subtle sky/ground gradient, cool blue from above
-    const hemi = new THREE.HemisphereLight(0x4a5a7a, 0x1a2a1a, 1.0);
+    const hemi = new THREE.HemisphereLight(0x7a8aa0, 0x3a4a3a, 1.6);
     this.scene.add(hemi);
 
-    // Moonlight directional, cool, low intensity — adds form without flattening
-    const moon = new THREE.DirectionalLight(0x8aa0d0, 1.0);
+    // Moonlight directional, cool — adds form without flattening
+    const moon = new THREE.DirectionalLight(0xa0b8e0, 1.8);
     moon.position.set(-8, 14, 6);
     this.scene.add(moon);
 
+    // Warm key light from the campfire direction (long throw)
+    const warmKey = new THREE.DirectionalLight(0xd4a070, 0.9);
+    warmKey.position.set(0, 8, -30);  // shining from sanctuary back toward player
+    warmKey.target.position.set(0, 0, 20);
+    this.scene.add(warmKey);
+    this.scene.add(warmKey.target);
+
     // Forward fill from camera position — illuminates the path ahead
-    const pathFill = new THREE.PointLight(0x7a8a9a, 1.2, 35, 1.4);
+    const pathFill = new THREE.PointLight(0x9aaaba, 1.8, 40, 1.2);
     pathFill.position.set(0, 4, 18);  // just behind spawn
     this.scene.add(pathFill);
   }
 
   setupFog() {
-    // Exponential fog in the void color — depth, mystery, hides horizon
-    this.scene.fog = new THREE.FogExp2(0x0D0F12, 0.025);
+    // Lighter fog so trees and lanterns read clearly. Color still moody.
+    this.scene.fog = new THREE.FogExp2(0x1a2028, 0.018);
   }
 
   // ─── Ground: large dark-moss disc with subtle vertex displacement ────────
@@ -298,6 +307,93 @@ export class World {
     this.scene.add(canopyInst2);
 
     this.forest = { trunkInst, canopyInst, canopyInst2, count: placed };
+  }
+
+  // ─── Real GLB-loaded swamp trees — PBR-shaded, high quality ──────────────
+  // Loaded asynchronously; build() does not block. Falls back to procedural
+  // trees via createForest() if the load fails or the file is missing.
+  loadGLBTrees() {
+    this.glbTrees = [];
+    this.glbReady = false;
+    const loader = new GLTFLoader();
+    loader.load(
+      '/assets/models/tree.glb',
+      (gltf) => {
+        const src = gltf.scene;
+
+        // Fix texture colorSpaces: baseColor is sRGB, normal/roughness are linear.
+        src.traverse((obj) => {
+          if (!obj.isMesh) return;
+          const mat = obj.material;
+          if (!mat) return;
+          if (mat.map)             mat.map.colorSpace           = THREE.SRGBColorSpace;
+          if (mat.normalMap)       mat.normalMap.colorSpace    = THREE.NoColorSpace;
+          if (mat.roughnessMap)    mat.roughnessMap.colorSpace = THREE.NoColorSpace;
+          if (mat.metalnessMap)    mat.metalnessMap.colorSpace = THREE.NoColorSpace;
+          if (mat.aoMap)           mat.aoMap.colorSpace        = THREE.NoColorSpace;
+          if (mat.emissiveMap)     mat.emissiveMap.colorSpace  = THREE.SRGBColorSpace;
+          // Leaves use alpha cutout — the GLB specifies alphaMode but be explicit.
+          if (mat.alphaMap || obj.name?.toLowerCase().includes('leaf')) {
+            mat.transparent = false;     // cutout, not blending
+            mat.alphaTest = 0.5;
+            mat.side = THREE.DoubleSide;
+            mat.depthWrite = true;
+          }
+        });
+
+        // Placement table — these are the canonical tree positions that
+        // match the camera path keyframes (kept in sync with createHangingMossTree,
+        // mushrooms, and hotspot positions). Avoid the camera path corridor.
+        // Source mesh is ~62 units tall; we scale to ~7–11 units (target tree height).
+        const placements = [
+          { x:  6.0, z:  10, s: 0.13, rot:  0.4 },
+          { x: -7.5, z:   4, s: 0.15, rot: -0.8 },
+          { x:  4.2, z: -15, s: 0.16, rot:  1.1 },  // matches hangingMossTree special tree
+          { x: -6.0, z: -22, s: 0.14, rot: -0.3 },
+          { x:  7.0, z:  18, s: 0.12, rot:  2.1 },
+          { x: -4.0, z:  22, s: 0.11, rot:  0.9 },
+          { x:  8.0, z:  -4, s: 0.13, rot: -1.7 },
+          { x: -9.0, z: -10, s: 0.15, rot:  0.6 },
+          { x:  5.0, z: -28, s: 0.14, rot: -0.5 },  // near campfire
+          { x: -3.0, z:  14, s: 0.12, rot:  1.4 },
+        ];
+
+        for (const p of placements) {
+          const clone = src.clone(true);   // deep clone so we can transform independently
+          clone.position.set(p.x, 0, p.z);
+          clone.rotation.y = p.rot;
+          clone.scale.setScalar(p.s);
+          clone.name = 'glbTree_' + p.x.toFixed(0) + '_' + p.z.toFixed(0);
+          clone.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
+          this.scene.add(clone);
+          this.glbTrees.push(clone);
+        }
+
+        // Hide procedural fallback once GLB trees are visible — they're lower
+        // quality and overlap with the real ones.
+        if (this.forest) {
+          this.forest.trunkInst.visible    = false;
+          this.forest.canopyInst.visible   = false;
+          this.forest.canopyInst2.visible  = false;
+        }
+
+        // Compute combined bbox of all glb trees for fog/visibility diagnostics
+        const bbox = new THREE.Box3();
+        for (const t of this.glbTrees) bbox.expandByObject(t);
+
+        this.glbReady = true;
+        this.glbBbox = bbox;
+        console.info('[anura] GLB trees loaded:', this.glbTrees.length,
+                     'bbox=', bbox.min.toArray().map(n => n.toFixed(1)),
+                     'max=', bbox.max.toArray().map(n => n.toFixed(1)));
+        window.dispatchEvent(new CustomEvent('anura:treesReady'));
+      },
+      undefined,
+      (err) => {
+        console.warn('[anura] tree.glb failed to load — falling back to procedural trees:', err);
+        // Procedural fallback already in scene from createForest()
+      }
+    );
   }
 
   // ─── Mushrooms: 30–40 bioluminescent mushrooms near path / tree bases ────

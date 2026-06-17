@@ -39,7 +39,7 @@ renderer.toneMappingExposure = 1.4;   // lifted from 1.05 to keep midtones reada
 
 // ── Scene + Camera ────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0D0F12);  // void-000
+scene.background = new THREE.Color(0x1a2028);  // matches fog so horizon dissolves naturally
 
 const camera = new THREE.PerspectiveCamera(
   55,

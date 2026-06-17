@@ -18,6 +18,12 @@
       const scene = a.scene;
       const dump = {
         sceneChildren: scene.children.length,
+        glbReady: a.world.glbReady,
+        glbTreeCount: a.world.glbTrees?.length || 0,
+        glbBbox: a.world.glbBbox ? {
+          min: a.world.glbBbox.min.toArray().map(n => +n.toFixed(1)),
+          max: a.world.glbBbox.max.toArray().map(n => +n.toFixed(1))
+        } : null,
         fog: scene.fog ? { type: scene.fog.constructor.name, density: scene.fog.density, color: scene.fog.color.getHexString() } : null,
         bg: scene.background ? scene.background.getHexString() : null,
         cameraPos: [a.camera.position.x.toFixed(2), a.camera.position.y.toFixed(2), a.camera.position.z.toFixed(2)],
