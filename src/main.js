@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { World } from './scene/World.js';
 import { CameraController } from './core/Camera.js';
 import { HotspotSystem } from './core/Hotspots.js';
@@ -33,13 +34,21 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.4;   // lifted from 1.05 to keep midtones readable
-// Keep default color space handling — Three.js r160 manages sRGB output correctly.
-// If we ever see washed-out or black colors, swap to NoColorSpace as a debug check.
+renderer.toneMappingExposure = 1.7;   // 1.4 → 1.7: moonlight reads, PBR textures pop
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // ── Scene + Camera ────────────────────────────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a2028);  // matches fog so horizon dissolves naturally
+
+// ── IBL environment (PBR requires this — without it materials look flat/cartoony) ──
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = envTex;
+scene.environmentIntensity = 0.6;  // subtle IBL — moonlight + key still drive the look
+pmrem.dispose();
 
 const camera = new THREE.PerspectiveCamera(
   55,

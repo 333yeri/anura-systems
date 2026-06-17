@@ -93,29 +93,46 @@ export class World {
 
   // ─── Global lighting & atmosphere ────────────────────────────────────────
   setupLights() {
-    // Soft cold ambient — lets dark materials be faintly visible
-    const ambient = new THREE.AmbientLight(0x5a6a7a, 2.4);
+    // Soft cold ambient — keeps dark materials faintly readable
+    const ambient = new THREE.AmbientLight(0x6a7a8a, 2.6);
     this.scene.add(ambient);
 
-    // Hemisphere — subtle sky/ground gradient, cool blue from above
-    const hemi = new THREE.HemisphereLight(0x7a8aa0, 0x3a4a3a, 1.6);
+    // Hemisphere — sky/ground gradient. Sky tinted toward moonlight blue,
+    // ground toward mossy green so the floor reads warm-ish.
+    const hemi = new THREE.HemisphereLight(0x8a9ad0, 0x3a4a3a, 2.2);
     this.scene.add(hemi);
 
-    // Moonlight directional, cool — adds form without flattening
-    const moon = new THREE.DirectionalLight(0xa0b8e0, 1.8);
-    moon.position.set(-8, 14, 6);
+    // Moonlight — the cinematic key light. High & angled so it cuts through
+    // the canopy and casts long, soft shadows. Bumped intensity so PBR
+    // textures catch the rim and look like real bark/leaf, not flat paint.
+    const moon = new THREE.DirectionalLight(0xc8d8ff, 3.4);
+    moon.position.set(-12, 22, 8);
+    moon.target.position.set(0, 0, -10);
+    moon.castShadow = true;
+    moon.shadow.mapSize.set(2048, 2048);
+    moon.shadow.camera.near = 1;
+    moon.shadow.camera.far = 60;
+    moon.shadow.camera.left = -30;
+    moon.shadow.camera.right = 30;
+    moon.shadow.camera.top = 30;
+    moon.shadow.camera.bottom = -30;
+    moon.shadow.bias = -0.0005;
+    moon.shadow.normalBias = 0.02;
+    moon.shadow.radius = 4;
     this.scene.add(moon);
+    this.scene.add(moon.target);
+    this.moon = moon;
 
     // Warm key light from the campfire direction (long throw)
-    const warmKey = new THREE.DirectionalLight(0xd4a070, 0.9);
-    warmKey.position.set(0, 8, -30);  // shining from sanctuary back toward player
+    const warmKey = new THREE.DirectionalLight(0xd4a070, 1.2);
+    warmKey.position.set(0, 8, -30);
     warmKey.target.position.set(0, 0, 20);
     this.scene.add(warmKey);
     this.scene.add(warmKey.target);
 
     // Forward fill from camera position — illuminates the path ahead
-    const pathFill = new THREE.PointLight(0x9aaaba, 1.8, 40, 1.2);
-    pathFill.position.set(0, 4, 18);  // just behind spawn
+    const pathFill = new THREE.PointLight(0x9aaaba, 2.4, 40, 1.2);
+    pathFill.position.set(0, 4, 18);
     this.scene.add(pathFill);
   }
 
