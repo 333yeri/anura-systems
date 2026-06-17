@@ -142,90 +142,119 @@ export class World {
     this.scene.fog = new THREE.FogExp2(0x1a2028, 0.018);
   }
 
-  // ─── Ground: large dark-moss disc with subtle vertex displacement ────────
+  // ─── Ground: shallow mud patches scattered across the swamp water plane ─
+  // The ground is NO LONGER one big disc. Instead it's ~20 irregular mud
+  // patches sitting on top of a water plane. The water is the dominant
+  // surface; mud patches are where the trees and the path sit.
   createGround() {
-    const radius = 80;
-    const segments = 64;
-    const geometry = new THREE.CircleGeometry(radius, segments);
-    geometry.rotateX(-Math.PI / 2);
+    this.mudPatches = [];
 
-    // Subtle organic vertex displacement (low-frequency, low-amplitude)
-    const rng = mulberry32(0xA1B2C3D4);
-    const pos = geometry.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      // Mix two sine fields + tiny noise for non-grid feel
-      const h =
-        Math.sin(x * 0.12) * 0.18 +
-        Math.cos(z * 0.09) * 0.22 +
-        Math.sin((x + z) * 0.05) * 0.15 +
-        (rng() - 0.5) * 0.08;
-      pos.setY(i, h);
+    // Path mud strip: a long, narrow raised mud strip along x=0
+    // following the camera path. Subtle elevation above water (~0.08m).
+    const pathStripGeom = this.makeMudPatchGeometry(48, 2.5, 0xA1B2C3D4, 0.6, 0.08);
+    const pathStrip = new THREE.Mesh(pathStripGeom, this.makeMudMaterial());
+    pathStrip.position.set(0, 0.04, -15); // centred along camera path
+    pathStrip.receiveShadow = true;
+    this.scene.add(pathStrip);
+    this.mudPatches.push(pathStrip);
+
+    // Scattered mud islands for the trees — placed to roughly align with
+    // the GLB tree placements so they look rooted, not floating.
+    const treeBases = [
+      { x:  6.0, z:  10, w: 2.5, h: 2.5 },
+      { x: -7.5, z:   4, w: 2.8, h: 2.8 },
+      { x:  4.2, z: -15, w: 3.2, h: 3.0 },
+      { x: -6.0, z: -22, w: 2.6, h: 2.6 },
+      { x:  7.0, z:  18, w: 2.4, h: 2.4 },
+      { x: -4.0, z:  22, w: 2.2, h: 2.4 },
+      { x:  8.0, z:  -4, w: 2.6, h: 2.6 },
+      { x: -9.0, z: -10, w: 2.8, h: 2.8 },
+      { x:  5.0, z: -28, w: 3.4, h: 3.0 },  // campfire island (slightly bigger)
+      { x: -3.0, z:  14, w: 2.4, h: 2.4 },
+    ];
+    let seed = 0xBEEF5678;
+    for (const b of treeBases) {
+      const geom = this.makeMudPatchGeometry(b.w, b.h, seed++, 0.7, 0.12);
+      const mesh = new THREE.Mesh(geom, this.makeMudMaterial());
+      mesh.position.set(b.x, 0.05, b.z);
+      mesh.receiveShadow = true;
+      mesh.castShadow = false;
+      this.scene.add(mesh);
+      this.mudPatches.push(mesh);
     }
-    pos.needsUpdate = true;
-    geometry.computeVertexNormals();
 
-    // Vertex-color tint: slightly darker near centre (campfire pit) and along
-    // a vague "path" corridor (x in [-3, 3]). Sells the worn-trail feel.
-    const colors = new Float32Array(pos.count * 3);
-    const cBase = new THREE.Color(MOSS_DARK);
-    const cDeep = new THREE.Color(MOSS_DEEP);
-    const tmp = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      const onPath = Math.abs(x) < 3 ? 1 - Math.abs(x) / 3 : 0;
-      tmp.copy(cBase).lerp(cDeep, 0.4 + onPath * 0.4);
-      colors[i * 3 + 0] = tmp.r;
-      colors[i * 3 + 1] = tmp.g;
-      colors[i * 3 + 2] = tmp.b;
-    }
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    const material = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.95,
-      metalness: 0.0,
-      flatShading: true,
-    });
-
-    const ground = new THREE.Mesh(geometry, material);
-    ground.receiveShadow = true;
-    ground.name = 'ground';
-    this.scene.add(ground);
-
-    // A handful of flat rock slabs scattered for visual interest (low poly)
-    const rockGeom = new THREE.DodecahedronGeometry(0.6, 0);
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: ROCK_GREY,
-      roughness: 1.0,
-      metalness: 0.0,
-      flatShading: true,
-    });
-    const rockRng = mulberry32(0xBEEF1234);
-    for (let i = 0; i < 18; i++) {
-      const r = 6 + rockRng() * 60;
-      const theta = rockRng() * Math.PI * 2;
+    // Outlying small mud tufts for texture — 30 small ones
+    for (let i = 0; i < 30; i++) {
+      const r = 5 + (i * 7.3 % 60);
+      const theta = (i * 1.618) * Math.PI * 2;
       const x = Math.cos(theta) * r;
       const z = Math.sin(theta) * r;
-      // avoid the path corridor
-      if (Math.abs(x) < 3.5 && z > -55 && z < 5) continue;
-      const rock = new THREE.Mesh(rockGeom, rockMat);
-      rock.position.set(x, 0.1, z);
-      rock.rotation.set(rockRng() * Math.PI, rockRng() * Math.PI, rockRng() * Math.PI);
-      const s = 0.5 + rockRng() * 1.4;
-      rock.scale.set(s, s * 0.6, s);
-      this.scene.add(rock);
+      // skip if inside path corridor
+      if (Math.abs(x) < 2.5 && z > -55 && z < 18) continue;
+      const w = 0.6 + (i * 0.13 % 1.2);
+      const h = 0.6 + (i * 0.17 % 1.2);
+      const geom = this.makeMudPatchGeometry(w, h, seed++, 0.85, 0.08);
+      const mesh = new THREE.Mesh(geom, this.makeMudMaterial());
+      mesh.position.set(x, 0.03, z);
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      this.mudPatches.push(mesh);
     }
+  }
+
+  // Builds an irregular mud patch: irregular circle, slight elevation noise
+  makeMudPatchGeometry(radiusX, radiusZ, seed, irregularity = 0.7, maxHeight = 0.15) {
+    const segs = 32;
+    const rng = mulberry32(seed);
+    const geom = new THREE.CircleGeometry(1.0, segs);
+    geom.rotateX(-Math.PI / 2);
+
+    // Deform circle into irregular patch
+    const pos = geom.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const angle = Math.atan2(z, x);
+      const r = Math.hypot(x, z);
+
+      // Vary radius by angle for irregular outline
+      const wobble = 1 + Math.sin(angle * 3 + rng() * 6) * irregularity * 0.2
+                          + Math.cos(angle * 5 + rng() * 4) * irregularity * 0.15
+                          + (rng() - 0.5) * irregularity * 0.25;
+      const y = Math.sin(x * 2.7 + rng() * 3) * maxHeight * 0.6
+              + Math.cos(z * 3.1 + rng() * 2) * maxHeight * 0.4
+              + (rng() - 0.5) * maxHeight * 0.5;
+
+      pos.setX(i, x * radiusX * wobble);
+      pos.setZ(i, z * radiusZ * wobble);
+      pos.setY(i, Math.max(0, y));
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+    return geom;
+  }
+
+  // Wet mud material — dark, slightly metallic-edge, with vertex colors
+  // for subtle tonal variation per patch
+  makeMudMaterial() {
+    return new THREE.MeshStandardMaterial({
+      color: 0x1a1208,             // very dark wet earth
+      roughness: 0.75,             // wet, not matte
+      metalness: 0.05,             // tiny specular catch from moonlight
+      flatShading: false,
+      vertexColors: true,
+    });
   }
 
   // ─── Cinematic dressing: sky dome, ground fog, bark tufts ───────────────
   // Wraps the GLB trees in atmosphere so they read cinematic, not flat.
   createCinematicDressing() {
     this.createSkyDome();
+    this.createSwampWater();      // ← THE swamp signal: standing water
     this.createGroundFog();
     this.createBarkTufts();
+    this.createCypressKnees();    // knobby protrusions from water
+    this.createCattails();        // vertical grass stalks breaking the surface
   }
 
   // Inverted sphere with vertical gradient (deep void → misty blue) + a
@@ -295,6 +324,246 @@ export class World {
     sky.renderOrder = -1;
     this.scene.add(sky);
     this.skyDome = sky;
+  }
+
+  // ─── SWAMP WATER: the dominant surface ──────────────────────────────────
+  // Single large plane at y=0 with a custom shader doing:
+  //   - subtle ripple displacement (vert shader)
+  //   - dark water color with depth gradient
+  //   - specular moonlight streak — long bright reflection toward camera
+  //   - caustic ripple pattern modulating specular highlight
+  //   - distant haze fade so the water melts into fog
+  // The water is what tells the user "this is a swamp" not "a forest on grass".
+  createSwampWater() {
+    const size = 120;
+    const geom = new THREE.PlaneGeometry(size, size, 1, 1);
+    geom.rotateX(-Math.PI / 2);
+
+    const mat = new THREE.ShaderMaterial({
+      transparent: false,
+      uniforms: {
+        uTime:       { value: 0 },
+        uColorDeep:  { value: new THREE.Color(0x05080a) },   // nearly black deep
+        uColorShallow: { value: new THREE.Color(0x0a1418) }, // dark teal
+        uMoonDir:    { value: new THREE.Vector3(-0.45, 0.7, 0.55).normalize() },
+        uMoonColor:  { value: new THREE.Color(0xeaf2ff) },
+        uMoonIntensity: { value: 1.4 },
+        uFogColor:   { value: new THREE.Color(0x1a2028) },
+        uFogDist:    { value: 38.0 }, // water fades into fog past this distance
+        uRippleStrength: { value: 0.08 }, // peak displacement amplitude
+        uCausticScale:   { value: 1.4 },
+      },
+      vertexShader: /* glsl */`
+        uniform float uTime;
+        uniform float uRippleStrength;
+        varying vec3 vWorldPos;
+        varying float vRipple;
+
+        // Cheap hash + value noise for ripple
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          float a = hash(i), b = hash(i + vec2(1,0));
+          float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+        }
+
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          // Layered ripple — two scales for chop + swell
+          float r1 = vnoise(wp.xz * 0.4 + uTime * 0.3) - 0.5;
+          float r2 = vnoise(wp.xz * 1.5 - uTime * 0.2) - 0.5;
+          float ripple = (r1 + r2 * 0.4) * uRippleStrength;
+          wp.y += ripple;
+          vWorldPos = wp.xyz;
+          vRipple = ripple;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform vec3 uColorDeep;
+        uniform vec3 uColorShallow;
+        uniform vec3 uMoonDir;
+        uniform vec3 uMoonColor;
+        uniform float uMoonIntensity;
+        uniform vec3 uFogColor;
+        uniform float uFogDist;
+        uniform float uTime;
+        uniform float uCausticScale;
+        varying vec3 vWorldPos;
+        varying float vRipple;
+
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          float a = hash(i), b = hash(i + vec2(1,0));
+          float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          for (int i = 0; i < 3; i++) { v += a * vnoise(p); p *= 2.05; a *= 0.5; }
+          return v;
+        }
+
+        void main() {
+          // Water base color: deep center, slightly brighter where ripple high
+          float rippleNorm = vRipple * 12.0 + 0.5;
+          vec3 base = mix(uColorDeep, uColorShallow, smoothstep(0.0, 0.7, rippleNorm));
+
+          // Specular streak from moon
+          // The moon reflection is strongest where the surface normal aligns
+          // with the half-vector between camera and moon. For a flat-ish water
+          // we approximate by sampling the wave gradient direction.
+          // Simple approach: a long bright streak from the moon direction
+          // projected onto XZ plane.
+          vec2 moonXZ = normalize(uMoonDir.xz);
+          vec2 fromMoonXZ = normalize(vWorldPos.xz - vec2(0.0));
+          // cos of angle between view-from-moon and the camera direction (toward 0)
+          vec2 toCenter = -normalize(vWorldPos.xz);
+          float align = max(0.0, dot(toCenter, moonXZ));
+          // Streak width: narrow near moon, widens toward camera
+          float distFromCenter = length(vWorldPos.xz);
+          float streakWidth = 0.18 + distFromCenter * 0.012;
+          float streakFalloff = smoothstep(streakWidth, 0.0, abs(dot(toCenter, vec2(-moonXZ.y, moonXZ.x))));
+          float streak = align * streakFalloff;
+
+          // Caustic ripple modulation on the streak
+          float caustic = fbm(vWorldPos.xz * uCausticScale + uTime * 0.15);
+          streak *= 0.4 + caustic * 1.4;
+
+          // Distance fog — water fades to fog color past uFogDist
+          float fogMix = smoothstep(uFogDist * 0.5, uFogDist, distFromCenter);
+          vec3 col = mix(base, uFogColor, fogMix);
+
+          // Add the moon streak
+          col += uMoonColor * streak * uMoonIntensity;
+
+          // Subtle ambient water shimmer everywhere
+          float shimmer = fbm(vWorldPos.xz * 2.5 - uTime * 0.1) * 0.04;
+          col += vec3(shimmer) * (1.0 - fogMix);
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+
+    const water = new THREE.Mesh(geom, mat);
+    water.position.y = 0.0;
+    water.name = 'swampWater';
+    water.renderOrder = -1;
+    water.receiveShadow = false; // shader handles its own lighting
+    this.scene.add(water);
+    this.swampWater = water;
+    this.swampWaterMat = mat;
+  }
+
+  // Cypress knees — small dark conical knobs protruding from the water.
+  // Scattered across the swamp; ~80 instances. The signature cypress knee
+  // shape is a stubby bulb with a slightly tapered neck.
+  createCypressKnees() {
+    const geom = new THREE.ConeGeometry(0.18, 0.55, 8, 1, false);
+    geom.translate(0, 0.275, 0);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x1a0f06,
+      roughness: 0.95,
+      metalness: 0.0,
+      flatShading: true,
+    });
+
+    const rng = mulberry32(0xC4CE55EE);
+    const count = 80;
+    const mesh = new THREE.InstancedMesh(geom, mat, count);
+    const dummy = new THREE.Object3D();
+    let placed = 0;
+    for (let i = 0; i < count * 2 && placed < count; i++) {
+      // Polar placement, biased outward
+      const r = 4 + rng() * 55;
+      const theta = rng() * Math.PI * 2;
+      const x = Math.cos(theta) * r;
+      const z = Math.sin(theta) * r;
+      // Skip path corridor (camera must walk through clear water)
+      if (Math.abs(x) < 2.2 && z > -55 && z < 18) continue;
+      // Skip if too close to a tree base (avoid clipping)
+      const distToTreeBase = Math.min(
+        ...[6.0,-7.5,4.2,-6.0,7.0,-4.0,8.0,-9.0,5.0,-3.0].map((tx, j) => {
+          const tz = [10,4,-15,-22,18,22,-4,-10,-28,14][j];
+          return Math.hypot(x - tx, z - tz);
+        })
+      );
+      if (distToTreeBase < 1.8) continue;
+
+      dummy.position.set(x, 0, z);
+      const s = 0.7 + rng() * 0.7;
+      dummy.scale.set(s, s * (0.8 + rng() * 0.6), s);
+      dummy.rotation.set(0, rng() * Math.PI * 2, (rng() - 0.5) * 0.2);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(placed, dummy.matrix);
+      placed++;
+    }
+    mesh.count = placed;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.cypressKnees = mesh;
+  }
+
+  // Cattails — vertical grass stalks breaking the water surface.
+  // Each cattail = thin cylinder + small brown cigar at the top.
+  createCattails() {
+    const stalkGeom = new THREE.CylinderGeometry(0.025, 0.035, 1.6, 5);
+    stalkGeom.translate(0, 0.8, 0);
+    const headGeom = new THREE.CylinderGeometry(0.08, 0.06, 0.35, 6);
+    headGeom.translate(0, 1.7, 0);
+
+    const stalkMat = new THREE.MeshStandardMaterial({
+      color: 0x2a3a1a,
+      roughness: 0.9,
+      metalness: 0.0,
+    });
+    const headMat = new THREE.MeshStandardMaterial({
+      color: 0x3a2a14,
+      roughness: 0.85,
+      metalness: 0.0,
+      flatShading: true,
+    });
+
+    const rng = mulberry32(0xC477155);
+    const count = 24;
+    const group = new THREE.Group();
+    group.name = 'cattails';
+
+    for (let i = 0; i < count; i++) {
+      // Cluster around path edges and far from trees
+      const side = rng() < 0.5 ? -1 : 1;
+      const r = 3 + rng() * 50;
+      const x = side * (2.5 + rng() * 8);
+      const z = -10 + rng() * 35;
+      // Skip if too close to trees
+      const cluster = new THREE.Group();
+      cluster.position.set(x, 0, z);
+      // 2-5 stalks per cluster
+      const stalks = 2 + Math.floor(rng() * 4);
+      for (let s = 0; s < stalks; s++) {
+        const stalk = new THREE.Mesh(stalkGeom, stalkMat);
+        stalk.position.set((rng() - 0.5) * 0.4, 0, (rng() - 0.5) * 0.4);
+        stalk.rotation.set((rng() - 0.5) * 0.1, 0, (rng() - 0.5) * 0.15);
+        const sc = 0.8 + rng() * 0.6;
+        stalk.scale.set(sc, sc, sc);
+        cluster.add(stalk);
+
+        const head = new THREE.Mesh(headGeom, headMat);
+        head.position.copy(stalk.position);
+        head.rotation.copy(stalk.rotation);
+        head.scale.copy(stalk.scale);
+        cluster.add(head);
+      }
+      group.add(cluster);
+    }
+    this.scene.add(group);
+    this.cattails = group;
   }
 
   // Thin horizontal fog plane between camera path and the trees. Renders as
@@ -1135,6 +1404,11 @@ export class World {
 
   // ─── Per-frame animation ────────────────────────────────────────────────
   update(elapsed) {
+    // Animate swamp water ripple + caustics
+    if (this.swampWaterMat) {
+      this.swampWaterMat.uniforms.uTime.value = elapsed;
+    }
+
     // Drift ground fog noise
     if (this.groundFogMat) {
       this.groundFogMat.uniforms.uTime.value = elapsed;

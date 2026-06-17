@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>body{margin:0;overflow:hidden;background:#1a2028}canvas{display:block}</style></head>
+<body>
+<script type="importmap">
+{"imports":{"three":"http://localhost:9090/node_modules/three/build/three.module.js",
+"three/addons/":"http://localhost:9090/node_modules/three/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);document.body.appendChild(r.domElement);
+const s=new THREE.Scene();s.background=new THREE.Color(0x1a2028);
+const c=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,200);c.position.set(8,4,8);
+new OrbitControls(c,r.domElement);
+r.toneMapping=THREE.ACESFilmicToneMapping;r.toneMappingExposure=1.7;
+s.add(new THREE.AmbientLight(0xffffff,2));
+s.add(new THREE.DirectionalLight(0xffffff,3).position.set(5,8,5));
+s.add(new THREE.DirectionalLight(0xc8d8ff,2).position.set(-5,8,-3));
+const g=new THREE.PlaneGeometry(40,40);g.rotateX(-Math.PI/2);
+s.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:0x2a4a2a,roughness:0.95})));
+const loader=new GLTFLoader();
+loader.load('/assets/models/tree.glb',gltf=>{
+  const t=gltf.scene;t.scale.setScalar(0.13);t.position.set(0,0,0);
+  t.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;
+    const m=o.material;if(m.map)m.map.colorSpace=THREE.SRGBColorSpace;
+    if(m.normalMap)m.normalMap.colorSpace=THREE.NoColorSpace;}});
+  s.add(t);
+  window.__tree = t;
+  document.title='TREE_LOADED:' + t.children.length;
+  setTimeout(()=>console.log('TREE BBOX', new THREE.Box3().setFromObject(t)),500);
+},err=>{document.title='TREE_ERROR';console.error(err);});
+function loop(){requestAnimationFrame(loop);r.render(s,c)}loop();
+</script></body></html>
