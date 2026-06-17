@@ -235,6 +235,9 @@ html, body {
   width: 100% !important;
   height: 100% !important;
   cursor: grab;
+  /* Take full ownership of touch gestures so mobile swipe = camera scroll,
+     not a browser back-gesture or rubber-band scroll. */
+  touch-action: none;
 }
 
 #world-canvas.is-grabbing { cursor: grabbing; }

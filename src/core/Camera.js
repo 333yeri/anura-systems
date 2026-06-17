@@ -119,13 +119,28 @@ export class CameraController {
   bindEvents() {
     this._handlers = {
       wheel: this._onWheel.bind(this),
+      touchstart: this._onTouchStart.bind(this),
+      touchmove: this._onTouchMove.bind(this),
+      touchend: this._onTouchEnd.bind(this),
       mousemove: this._onMouseMove.bind(this),
       resize: this._onResize.bind(this),
     };
 
-    // Wheel is attached to the canvas/dom element so the page itself
-    // doesn't scroll; we own the input.
+    // Wheel (desktop) — bind to BOTH canvas and window so it works whether
+    // the cursor is over the canvas or any HUD element above it.
     this.dom.addEventListener('wheel', this._handlers.wheel, { passive: false });
+    window.addEventListener('wheel', this._handlers.wheel, { passive: false });
+
+    // Touch (mobile) — capture swipes. preventDefault on touchmove prevents
+    // the browser from interpreting the swipe as a back-gesture or scroll.
+    this.dom.addEventListener('touchstart', this._handlers.touchstart, { passive: false });
+    this.dom.addEventListener('touchmove',  this._handlers.touchmove,  { passive: false });
+    this.dom.addEventListener('touchend',   this._handlers.touchend,   { passive: false });
+    // Same on window — touch on any HUD layer should still drive the camera.
+    window.addEventListener('touchstart', this._handlers.touchstart, { passive: false });
+    window.addEventListener('touchmove',  this._handlers.touchmove,  { passive: false });
+    window.addEventListener('touchend',   this._handlers.touchend,   { passive: false });
+
     window.addEventListener('mousemove', this._handlers.mousemove, { passive: true });
     window.addEventListener('resize', this._handlers.resize);
   }
@@ -139,6 +154,33 @@ export class CameraController {
       1,
     );
     this.lastInput = performance.now();
+  }
+
+  // Touch: track the y of the first finger and convert vertical drag into
+  // progress. 1px of upward drag = +progress (i.e. scroll forward / descend
+  // into swamp). Matches wheel semantics: scroll-down advances progress.
+  _onTouchStart(e) {
+    if (e.touches.length === 0) return;
+    this._touchY = e.touches[0].clientY;
+    this._touching = true;
+  }
+  _onTouchMove(e) {
+    if (!this._touching || e.touches.length === 0) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    const dy = this._touchY - y;   // upward swipe (y decreases) → positive dy
+    this._touchY = y;
+    // Sensitivity: ~viewport-height-of-swipe = full traversal.
+    // dy is per-event delta; multiply for a single-event drag feel.
+    this.targetProgress = THREE.MathUtils.clamp(
+      this.targetProgress + dy * 0.002,
+      0,
+      1,
+    );
+    this.lastInput = performance.now();
+  }
+  _onTouchEnd(e) {
+    this._touching = false;
   }
 
   _onMouseMove(e) {
@@ -277,6 +319,13 @@ export class CameraController {
   dispose() {
     if (!this._handlers) return;
     this.dom.removeEventListener('wheel', this._handlers.wheel);
+    window.removeEventListener('wheel', this._handlers.wheel);
+    this.dom.removeEventListener('touchstart', this._handlers.touchstart);
+    this.dom.removeEventListener('touchmove',  this._handlers.touchmove);
+    this.dom.removeEventListener('touchend',   this._handlers.touchend);
+    window.removeEventListener('touchstart', this._handlers.touchstart);
+    window.removeEventListener('touchmove',  this._handlers.touchmove);
+    window.removeEventListener('touchend',   this._handlers.touchend);
     window.removeEventListener('mousemove', this._handlers.mousemove);
     window.removeEventListener('resize', this._handlers.resize);
     this._handlers = null;
