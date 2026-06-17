@@ -1,15 +1,19 @@
 {
   "name": "anura-systems",
-  "version": "0.1.0",
-  "description": "Interactive 3D Awwwards-level site",
-  "main": "src/js/main.js",
+  "version": "1.0.0",
+  "description": "Anura Systems — single-page 3D cinematic experience",
+  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "serve ./src -s -l 3000",
-    "start": "npm run dev"
+    "dev": "vite --host 0.0.0.0 --port 9090",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 9090"
   },
   "dependencies": {
-    "three": "^0.154.0",
-    "gsap": "^3.11.0",
-    "serve": "^14.2.0"
+    "gsap": "^3.12.5",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }

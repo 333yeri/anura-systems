@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><title>ANURA-DEBUG</title></head>
+<body>
+<iframe id="f" src="/" style="width:100vw;height:100vh;border:0"></iframe>
+<script>
+  const f = document.getElementById('f');
+  f.onload = async () => {
+    // Wait for scene to initialize
+    await new Promise(r => setTimeout(r, 6000));
+    try {
+      const w = f.contentWindow;
+      const a = w.__anura;
+      if (!a) {
+        document.title = 'NO_ANURA';
+        return;
+      }
+      const scene = a.scene;
+      const dump = {
+        sceneChildren: scene.children.length,
+        fog: scene.fog ? { type: scene.fog.constructor.name, density: scene.fog.density, color: scene.fog.color.getHexString() } : null,
+        bg: scene.background ? scene.background.getHexString() : null,
+        cameraPos: [a.camera.position.x.toFixed(2), a.camera.position.y.toFixed(2), a.camera.position.z.toFixed(2)],
+        progress: a.camCtrl.progress.toFixed(3),
+        hotspots: a.hotspots.proxyMeshes.length,
+        gateState: w.document.getElementById('loading-gate')?.classList.contains('dismissed'),
+        lights: scene.children.filter(c => c.isLight).map(l => ({ type: l.constructor.name, color: l.color?.getHexString(), intensity: l.intensity })),
+        treeCount: scene.children.filter(c => c.name === 'forestInst' || c.name?.includes('tree') || c.name?.includes('Trunk') || c.name?.includes('Canopy')).length
+      };
+      document.title = 'OK:' + JSON.stringify(dump);
+      document.body.insertAdjacentHTML('beforeend', '<pre id="out" style="position:fixed;top:0;left:0;background:#000;color:#0f0;padding:8px;font:11px monospace;max-width:100%;white-space:pre-wrap;z-index:9999">' + JSON.stringify(dump, null, 2) + '</pre>');
+    } catch(e) {
+      document.title = 'ERR:' + e.message;
+    }
+  };
+</script>
+</body>
+</html>

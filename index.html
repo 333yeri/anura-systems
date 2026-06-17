@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>[ANURA.] SYSTEMS</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <!-- ═══ ACT 1: THE GATE ═══ -->
+  <div id="loading-gate" aria-hidden="false">
+    <div class="crt-overlay"></div>
+    <div class="crt-vignette"></div>
+    <div class="gate-module">
+      <div class="brand-mark">
+        <span class="bracket bracket-l">[</span><span class="wordmark">ANURA.</span><span class="bracket bracket-r">]</span>
+      </div>
+      <div class="subline">system</div>
+      <div class="frog-stage">
+        <div class="frog-wrap"></div>
+      </div>
+      <div class="gate-readout">
+        <span class="instr-text" id="instr-text">STANDBY...</span>
+        <span class="pct-counter" id="pct-counter">00%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="gate-foot">v0.1.0 // SCANNING APPLICANT CREDENTIALS</div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN 3D WORLD ═══ -->
+  <main id="world-stage">
+    <canvas id="world-canvas"></canvas>
+
+    <!-- HUD: scroll hint, brand mark, controls -->
+    <div class="hud">
+      <div class="hud-brand">[ANURA.]</div>
+      <div class="hud-scroll-hint" id="scroll-hint">
+        <span class="hint-text">SCROLL TO DESCEND</span>
+        <span class="hint-arrow">▼</span>
+      </div>
+      <div class="hud-progress" id="hud-progress">
+        <div class="hud-progress-track">
+          <div class="hud-progress-bar" id="hud-progress-bar"></div>
+        </div>
+        <div class="hud-progress-label">
+          <span id="act-label">ACT II</span>
+          <span id="progress-pct">00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hotspot modal -->
+    <div class="hotspot-modal" id="hotspot-modal" aria-hidden="true">
+      <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+      <div class="modal-kicker" id="modal-kicker"></div>
+      <h2 class="modal-title" id="modal-title"></h2>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-cta" id="modal-cta"></div>
+    </div>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+  <script>
+    // ── Act 1 Gate logic (CRT loading) ──────────────────────────
+    (function () {
+      var gate = document.getElementById('loading-gate');
+      var instr = document.getElementById('instr-text');
+      var pct = document.getElementById('pct-counter');
+      var bar = document.getElementById('progress-bar');
+      var frog = document.querySelector('.frog-wrap');
+      if (!gate) return;
+
+      var phrases = [
+        'STANDBY...',
+        'AWAITING_CREATOR...',
+        'CALIBRATING_FOREST...',
+        'WARMING_EMBERS...',
+        'GATE_NEAR...'
+      ];
+
+      function update(value) {
+        var safe = Math.max(0, Math.min(100, value));
+        if (pct) pct.textContent = String(Math.round(safe)).padStart(2, '0') + '%';
+        if (bar) bar.style.width = safe + '%';
+        if (instr) instr.textContent = phrases[Math.min(phrases.length - 1, Math.floor(safe / (100 / phrases.length)))];
+      }
+
+      var progress = 0;
+      var loader = setInterval(function () {
+        // Slow down near the end for tension
+        var step = Math.random() * 14 + (progress > 80 ? 3 : 8);
+        progress += step;
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(loader);
+          update(100);
+          if (instr) instr.textContent = 'GATE_OPEN';
+          setTimeout(function () {
+            gate.classList.add('dismissed');
+            window.dispatchEvent(new CustomEvent('anura:gateComplete'));
+          }, 700);
+        } else {
+          update(progress);
+        }
+      }, 220);
+    })();
+  </script>
+</body>
+</html>
