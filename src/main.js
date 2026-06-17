@@ -40,7 +40,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // ── Scene + Camera ────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a2028);  // matches fog so horizon dissolves naturally
+// No background — the sky dome covers it. Black flash if it fails to load.
+// scene.background = new THREE.Color(0x1a2028);
 
 // ── IBL environment (PBR requires this — without it materials look flat/cartoony) ──
 const pmrem = new THREE.PMREMGenerator(renderer);

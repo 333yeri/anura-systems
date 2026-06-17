@@ -59,6 +59,7 @@ export class World {
     this.setupLights();
     this.setupFog();
     this.createGround();
+    this.createCinematicDressing();     // sky dome, ground fog, bark tufts placeholder
     this.createForest();              // procedural fallback (will be visually overlaid by GLBs)
     this.loadGLBTrees();              // async — PBR trees land once loaded
     this.createPathLanterns();        // small warm glow markers along the path
@@ -216,6 +217,207 @@ export class World {
       const s = 0.5 + rockRng() * 1.4;
       rock.scale.set(s, s * 0.6, s);
       this.scene.add(rock);
+    }
+  }
+
+  // ─── Cinematic dressing: sky dome, ground fog, bark tufts ───────────────
+  // Wraps the GLB trees in atmosphere so they read cinematic, not flat.
+  createCinematicDressing() {
+    this.createSkyDome();
+    this.createGroundFog();
+    this.createBarkTufts();
+  }
+
+  // Inverted sphere with vertical gradient (deep void → misty blue) + a
+  // moon disc baked into the fragment shader. Behind the trees it gives
+  // them a real silhouette read — flat colored background was Roblox feel.
+  createSkyDome() {
+    const skyGeom = new THREE.SphereGeometry(120, 32, 16);
+    // Flip so we see the inside
+    skyGeom.scale(-1, 1, 1);
+
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        uTopColor:    { value: new THREE.Color(0x05080d) }, // deep void
+        uMidColor:    { value: new THREE.Color(0x0e1a28) }, // misty horizon
+        uBottomColor: { value: new THREE.Color(0x1a1410) }, // warm ground glow
+        uMoonDir:     { value: new THREE.Vector3(-0.45, 0.7, 0.55).normalize() },
+        uMoonColor:   { value: new THREE.Color(0xeaf2ff) },
+        uMoonSize:    { value: 0.012 }, // angular size
+      },
+      vertexShader: /* glsl */`
+        varying vec3 vWorldDir;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldDir = normalize(wp.xyz);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */`
+        varying vec3 vWorldDir;
+        uniform vec3 uTopColor;
+        uniform vec3 uMidColor;
+        uniform vec3 uBottomColor;
+        uniform vec3 uMoonDir;
+        uniform vec3 uMoonColor;
+        uniform float uMoonSize;
+        void main() {
+          float h = vWorldDir.y; // -1..1
+          vec3 sky;
+          if (h > 0.0) {
+            // Upper hemisphere: deep void → misty blue
+            float t = smoothstep(0.0, 0.6, h);
+            sky = mix(uMidColor, uTopColor, t);
+          } else {
+            // Lower hemisphere: warmish ground bounce
+            float t = smoothstep(0.0, -0.4, h);
+            sky = mix(uMidColor, uBottomColor, t);
+          }
+          // Moon disc + soft halo
+          float d = length(vWorldDir - uMoonDir);
+          float moon = 1.0 - smoothstep(uMoonSize, uMoonSize * 1.4, d);
+          float halo = 1.0 - smoothstep(uMoonSize * 1.4, uMoonSize * 8.0, d);
+          halo = pow(halo, 1.5) * 0.25;
+          sky += uMoonColor * moon;
+          sky += uMoonColor * halo;
+          // Subtle vertical haze near horizon
+          float haze = 1.0 - smoothstep(0.0, 0.15, abs(h));
+          sky += vec3(0.04, 0.06, 0.08) * haze * 0.4;
+          gl_FragColor = vec4(sky, 1.0);
+        }
+      `,
+    });
+
+    const sky = new THREE.Mesh(skyGeom, skyMat);
+    sky.name = 'skyDome';
+    sky.renderOrder = -1;
+    this.scene.add(sky);
+    this.skyDome = sky;
+  }
+
+  // Thin horizontal fog plane between camera path and the trees. Renders as
+  // additive translucent — gives a "god ray through canopy" feel without
+  // volumetric raymarching. ~3% GPU cost.
+  createGroundFog() {
+    const fogGeom = new THREE.PlaneGeometry(120, 120, 1, 1);
+    fogGeom.rotateX(-Math.PI / 2);
+
+    const fogMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: {
+        uTime:       { value: 0 },
+        uColor:      { value: new THREE.Color(0x4a6080) },
+        uDensity:    { value: 0.55 },
+      },
+      vertexShader: /* glsl */`
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          vUv = uv;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        uniform float uTime;
+        uniform vec3 uColor;
+        uniform float uDensity;
+        // 2D hash + value noise
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          float a = hash(i), b = hash(i + vec2(1,0));
+          float c = hash(i + vec2(0,1)), d = hash(i + vec2(1,1));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.05; a *= 0.5; }
+          return v;
+        }
+        void main() {
+          // Drift the noise slowly
+          vec2 p = vWorldPos.xz * 0.07 + vec2(uTime * 0.02, uTime * 0.013);
+          float n = fbm(p);
+          // Falloff toward edges so the plane doesn't have a hard square edge
+          float r = length(vUv - 0.5) * 2.0;
+          float falloff = 1.0 - smoothstep(0.5, 0.95, r);
+          float alpha = n * uDensity * falloff;
+          gl_FragColor = vec4(uColor * alpha, alpha * 0.5);
+        }
+      `,
+    });
+
+    const fog = new THREE.Mesh(fogGeom, fogMat);
+    fog.position.y = 0.6; // hovers just above ground
+    fog.name = 'groundFog';
+    fog.renderOrder = 1;
+    this.scene.add(fog);
+    this.groundFog = fog;
+    this.groundFogMat = fogMat;
+  }
+
+  // Per-tree bark tufts and mossy ground cover placed at the base of each
+  // GLB tree once it loads. Covers the harsh root/ground meeting so each
+  // tree reads as rooted in earth, not pasted on a disc.
+  createBarkTufts() {
+    // Placeholders — actual tufts are added in loadGLBTrees() once positions known
+    this.barkTufts = [];
+    this.mossRocks = [];
+  }
+
+  // Called after GLB trees load — adds tufts at each tree base
+  addTuftsForTree(treePos) {
+    const rng = mulberry32(Math.floor((treePos.x * 31.7 + treePos.z * 17.3) * 1000));
+
+    // Bark tuft: small dark mound around the trunk base
+    const tuftGeom = new THREE.SphereGeometry(0.8, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+    tuftGeom.scale(1.4, 0.5, 1.4);
+    const tuftMat = new THREE.MeshStandardMaterial({
+      color: 0x1a0f08,
+      roughness: 1.0,
+      metalness: 0.0,
+    });
+    const tuft = new THREE.Mesh(tuftGeom, tuftMat);
+    tuft.position.copy(treePos);
+    tuft.position.y = -0.05;
+    tuft.receiveShadow = true;
+    tuft.castShadow = true;
+    this.scene.add(tuft);
+    this.barkTufts.push(tuft);
+
+    // 3-5 mossy rocks around base, varied sizes
+    const rockCount = 3 + Math.floor(rng() * 3);
+    for (let i = 0; i < rockCount; i++) {
+      const angle = rng() * Math.PI * 2;
+      const dist = 0.8 + rng() * 1.2;
+      const size = 0.15 + rng() * 0.35;
+      const rockGeom = new THREE.DodecahedronGeometry(size, 0);
+      const rockMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0x2a3a1a).lerp(new THREE.Color(0x1a2a1a), rng()),
+        roughness: 0.9,
+        metalness: 0.0,
+        flatShading: true,
+      });
+      const rock = new THREE.Mesh(rockGeom, rockMat);
+      rock.position.set(
+        treePos.x + Math.cos(angle) * dist,
+        size * 0.3,
+        treePos.z + Math.sin(angle) * dist
+      );
+      rock.rotation.set(rng() * 0.4, rng() * Math.PI * 2, rng() * 0.4);
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      this.scene.add(rock);
+      this.mossRocks.push(rock);
     }
   }
 
@@ -384,6 +586,9 @@ export class World {
           clone.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
           this.scene.add(clone);
           this.glbTrees.push(clone);
+
+          // Add bark tuft + mossy rocks at base so the tree reads as rooted
+          this.addTuftsForTree(clone.position);
         }
 
         // Hide procedural fallback once GLB trees are visible — they're lower
@@ -930,6 +1135,11 @@ export class World {
 
   // ─── Per-frame animation ────────────────────────────────────────────────
   update(elapsed) {
+    // Drift ground fog noise
+    if (this.groundFogMat) {
+      this.groundFogMat.uniforms.uTime.value = elapsed;
+    }
+
     // Mushroom pulse: emissive 1.0 + sin(t*2) * 0.5
     for (const mat of this.mushroomMaterials) {
       if (mat && mat.emissiveIntensity !== undefined) {
