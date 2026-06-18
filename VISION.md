@@ -151,26 +151,28 @@ Crysis 1, Half-Life 2 Episode 2, Fallout 3, BioShock.)
 
 ---
 
-## §3 — Text Scripts (per act) ⏳ PENDING DARIA
+## §3 — Text Scripts (per act) ✅ LOCKED 2026-06-18 — verbatim from board, draft v1
+
+**Locked for now. May be revised later per Yeray.**
 
 Source: board page 4.
 
-### ACT 2 script (Daria to finalize)
+### ACT 2 script — LOCKED (verbatim from board)
 
 > "You're not lost. You're exactly where you're meant to be. Notice how
 > it feels here?"
 
-### ACT 3 script (Daria to finalize)
+### ACT 3 script — LOCKED (verbatim from board)
 
 > "Anura Systems — What if your website could feel like entering
 > another world? Still following the frog?"
 
-### ACT 4 script (Daria to finalize)
+### ACT 4 script — LOCKED (verbatim from board)
 
 > "You've arrived to the destination. This is calm. This is presence.
 > Experience — is what body and mind remembers."
 
-### ACT 4 CTA text (LOCKED — verbatim from board)
+### ACT 4 CTA text — LOCKED (verbatim from board)
 
 Above the campfire, pulsing: **`IF YOU ARE WORTHY OF OUR PROCESS`**
 
@@ -180,15 +182,23 @@ Below it (Yeri voice):
 > we will contact you within 24 hours. Unlock the access in the mind
 > and follow your heart."
 
-Top-bar buttons (light up after Yeri's line):
-- Our services / what's in it for you
-- How we co-create with your vision / how we work
-- Why do we do what we do
-- Contact us
+### Button labels — LOCKED (verbatim from board)
+
+Top-bar buttons (light up with ember/amber glow so visitors know to click
+on desktop, or tap on mobile):
+
+- our services
+- how we co-create with your vision
+- why we do what we do
+- contact us
+
+**Note:** casing follows board. May be title-cased at build time if desired.
 
 ---
 
-## §4 — Questionnaire Script (Act 5) ⏳ PENDING DARIA FINAL APPROVAL
+## §4 — Questionnaire Script (Act 5) ✅ LOCKED 2026-06-18 — verbatim from board, draft v1
+
+**Locked for now. Final approval depends on Daria's wording pass.**
 
 Source: board page 4.
 
@@ -241,11 +251,13 @@ Source: board page 2. **Email aliases are real, not placeholders.**
 
 ---
 
-## §7 — Anura Systems Values ⏳ PENDING — Daria wants variants on labels
+## §7 — Anura Systems Values ✅ LOCKED 2026-06-18 — INTERNAL ONLY
 
-Source: board page 2 (X-diagram, eight values).
+**These are NOT shown on the website.** They are internal compass /
+manifesto. Daria is preparing variants on the labels.
 
-Currently extracted verbatim — needs Daria reaction:
+Source: board page 2 (X-diagram, eight values). Currently extracted
+verbatim:
 
 1. Deliberate and distraction-free communication culture
 2. Async calm values
@@ -255,6 +267,8 @@ Currently extracted verbatim — needs Daria reaction:
 6. Disciplined execution
 7. Aesthetic Sovereignty
 8. Precision-built systems with no shortcuts or compromise
+
+When Daria delivers variants, replace the list above.
 
 ---
 
@@ -294,21 +308,19 @@ Source: board page 4.
 
 ---
 
-## §11 — Who We Are (positioning) ⏳ PENDING — Yeray flagged "top 1%" tension
+## §11 — Who We Are (positioning) ✅ LOCKED 2026-06-18 — INTERNAL ONLY
 
-Source: board page 4.
+**NOT shown on the website.** Internal positioning copy for sales /
+Daria's onboarding scripts only.
+
+Source: board page 4 (cleaned — removed "top 1%" + "multi-million dollar"
+per Yeray's voice message 2026-06-18):
 
 > Anura Systems is a faceless digital architecture studio that builds
-> immersive, 60fps worlds for the top 1% of physical craftsmen. We do
-> not sell websites. We sell admission into a world that preserves
-> multi-million dollar equity. We look for the unconventional, the
-> weird, the authentic. Conventional thinking is simply not on our map.
-
-**Open question:** the "top 1% of physical craftsmen" line is in tension
-with §1's welcoming tone (which Yeray + Daria picked because Option C
-felt too exclusionary). Decision: soften this line, or accept the
-tension as deliberate art-direction (it's positioning copy aimed at
-*qualifying out* non-fits, while §1 is the welcoming hook).
+> immersive, 60fps worlds for **[physical craftsmen]**. We do not sell
+> websites. We sell admission into a world that preserves **[equity]**.
+> We look for the unconventional, the weird, the authentic.
+> Conventional thinking is simply not on our map.
 
 ---
 
@@ -323,7 +335,10 @@ Source: board page 4.
 
 ---
 
-## §13 — What The Market Does vs. What Anura Does ✅ LOCKED 2026-06-18
+## §13 — What The Market Does vs. What Anura Does ✅ LOCKED 2026-06-18 — INTERNAL ONLY
+
+**NOT shown on the website.** Internal positioning / sales material.
+Yeray confirmed 2026-06-18.
 
 Source: board page 4.
 
@@ -337,14 +352,24 @@ Source: board page 4.
 
 ## §14 — Taglines ✅ LOCKED 2026-06-18
 
-Source: board page 4.
+Source: board page 4. Two taglines were drafted on the board. Yeray
+picked only one for the website:
 
-- "We engineer digital experiences that preserve equity."
-- "We turn websites into experiences that people remember."
+**Used on the site:**
+
+> "We turn websites into experiences that people remember."
+
+**Held back (draft v2 candidate, internal only):**
+
+> "We engineer digital experiences that preserve equity."
 
 ---
 
-## §15 — Service List (positioning copy) ✅ LOCKED 2026-06-18
+## §15 — Service List (positioning copy) ✅ LOCKED 2026-06-18 — INTERNAL ONLY
+
+**NOT shown on the website.** Used internally for SEO keywords, social
+media bios, Daria's discovery work. Per Yeray 2026-06-18: "this is for
+the socials it describes what we do it wont be said on the website."
 
 Source: board page 4. Surface area Anura claims:
 
