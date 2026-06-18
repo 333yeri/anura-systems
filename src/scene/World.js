@@ -74,6 +74,7 @@ export class World {
     this.createStars();
     this.createFrog();
     this.createHangingMossTree();
+    this.createGodRays();
   }
 
   // ─── Small warm lanterns along the path — keep the drift visible ─────────
@@ -1416,6 +1417,13 @@ export class World {
     this.fireParticles.name = 'fireParticles';
     this.scene.add(this.fireParticles);
 
+    // Sprite-based flames from Gemini-generated PNG. Layered above the
+    // procedural particles for a richer, more realistic fire look.
+    // Each sprite is a billboarded plane that always faces the camera.
+    // The PNG has multiple flame shapes baked in (tall/thin, wide/short,
+    // multi-tongued). We sample random UVs to pick which variant.
+    this.createFireSprite(pos);
+
     // Warm point light at campfire
     this.campfireLight = new THREE.PointLight(EMBER_AMBER, 2.5, 15, 1.5);
     this.campfireLight.position.copy(pos).add(new THREE.Vector3(0, 0.6, 0));
@@ -1458,6 +1466,80 @@ export class World {
     positions[i * 3 + 2] = Math.sin(a) * r;
     lifetimes[i] = Math.random();        // 0..1
     seeds[i] = Math.random();
+  }
+
+  // ─── Sprite-based flames: 3 Gemini PNG variants layered above logs ──────
+  // Loads flame-main.png (1408x768, 3 flame shapes side-by-side, transparent BG).
+  // Spawns 25-35 billboarded sprites that always face the camera, each
+  // randomly picking one of the 3 flame variants, scaling/fading/drifting
+  // for a non-looping realistic fire look.
+  createFireSprite(firePos) {
+    const tex = new THREE.TextureLoader().load('/assets/sprites/flame-main.png');
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+
+    // Three flame variants — u-offset per variant
+    // From column analysis: 131-332, 514-850, 995-1303 in 1408-wide image
+    const VARIANTS = [
+      { uMin: 131/1408, uMax: 332/1408 },   // narrow/tall
+      { uMin: 514/1408, uMax: 850/1408 },   // wide
+      { uMin: 995/1408, uMax: 1303/1408 },  // medium
+    ];
+
+    const COUNT = 30;
+    const group = new THREE.Group();
+    group.name = 'fireSprites';
+
+    const sprites = [];
+    for (let i = 0; i < COUNT; i++) {
+      const variant = VARIANTS[i % VARIANTS.length];
+      // Clone the texture and offset UVs to show only this variant
+      const variantTex = tex.clone();
+      variantTex.needsUpdate = true;
+      variantTex.repeat.set(variant.uMax - variant.uMin, 1.0);
+      variantTex.offset.set(variant.uMin, 0);
+
+      const mat = new THREE.MeshBasicMaterial({
+        map: variantTex,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        color: 0xFFC987,
+      });
+
+      // Each sprite is a billboarded quad, ~1m wide × 1.5m tall
+      const w = 0.8 + Math.random() * 0.4;
+      const h = 1.2 + Math.random() * 0.6;
+      const geom = new THREE.PlaneGeometry(w, h);
+      const mesh = new THREE.Mesh(geom, mat);
+
+      // Initial position: scattered around fire base
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.4;
+      mesh.position.set(
+        firePos.x + Math.cos(a) * r,
+        firePos.y + 0.4 + Math.random() * 0.6,
+        firePos.z + Math.sin(a) * r,
+      );
+
+      sprites.push({
+        mesh,
+        baseY: mesh.position.y,
+        phase: Math.random() * Math.PI * 2,
+        scale: 0.7 + Math.random() * 0.5,
+        speed: 0.8 + Math.random() * 0.6,
+      });
+      group.add(mesh);
+    }
+
+    this.scene.add(group);
+    this.fireSprites = sprites;
+    this.fireSpriteGroup = group;
+
+    // Update in main loop — handled in update()
   }
 
   // ─── Stars: 200 points in upper hemisphere only ─────────────────────────
@@ -1511,6 +1593,95 @@ export class World {
     this.stars = new THREE.Points(geom, mat);
     this.stars.name = 'stars';
     this.scene.add(this.stars);
+  }
+
+  // ─── God rays at the clearing: hint that "you are almost there" ─────────
+  // 6 large translucent planes angled down from above, converging toward
+  // the campfire. Visible only when the camera is approaching (z < -30).
+  // They point toward the campfire at (0, 0, -65) so the visitor sees
+  // the warm light source before they arrive.
+  createGodRays() {
+    const RAY_COUNT = 6;
+    const TARGET = new THREE.Vector3(0, 1.5, -65);  // campfire position
+    const rays = new THREE.Group();
+    rays.name = 'godRays';
+
+    for (let i = 0; i < RAY_COUNT; i++) {
+      // Each ray starts 8-15m offset from target, 8-12m up
+      const offsetAngle = (i / RAY_COUNT) * Math.PI * 2;
+      const offsetR = 8 + Math.random() * 7;
+      const startPos = new THREE.Vector3(
+        TARGET.x + Math.cos(offsetAngle) * offsetR,
+        TARGET.y + 8 + Math.random() * 4,
+        TARGET.z + Math.sin(offsetAngle) * offsetR,
+      );
+
+      // Build a quad from start → target direction, 2m wide × 14m long
+      const dir = new THREE.Vector3().subVectors(TARGET, startPos);
+      const length = dir.length();
+      dir.normalize();
+
+      // Build quad oriented to face camera (billboard-ish)
+      // For simplicity, use a PlaneGeometry rotated to align with dir
+      const planeGeom = new THREE.PlaneGeometry(2.5, length, 1, 1);
+      // Plane is in XY plane, normal +Z. We need it oriented along dir.
+      // First translate so center is at midpoint
+      const midpoint = new THREE.Vector3().addVectors(startPos, TARGET).multiplyScalar(0.5);
+      planeGeom.translate(0, length / 2, 0);  // bottom edge at origin
+
+      const planeMat = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        uniforms: {
+          uColor: { value: new THREE.Color(0xFFC987) },  // warm amber
+          uOpacity: { value: 0.18 + Math.random() * 0.12 },
+        },
+        vertexShader: /* glsl */`
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: /* glsl */`
+          uniform vec3 uColor;
+          uniform float uOpacity;
+          varying vec2 vUv;
+          void main() {
+            // Fade from edges to center (so plane edges aren't sharp)
+            float edgeFade = smoothstep(0.0, 0.5, vUv.x) * smoothstep(1.0, 0.5, vUv.x);
+            // Fade out toward top (further from target = less visible)
+            float lengthFade = smoothstep(0.0, 0.3, vUv.y);
+            float alpha = edgeFade * lengthFade * uOpacity;
+            gl_FragColor = vec4(uColor, alpha);
+          }
+        `,
+      });
+
+      const mesh = new THREE.Mesh(planeGeom, planeMat);
+      mesh.position.copy(startPos);
+
+      // Orient plane so its length axis points from startPos → TARGET
+      // The plane's local Y axis should align with `dir`.
+      // PlaneGeometry default has Y as vertical. Rotate around Z so plane
+      // faces camera (rotate so normal points sideways toward camera path)
+      // Then tilt around X so length axis is along dir.
+      const up = new THREE.Vector3(0, 1, 0);
+      const quat = new THREE.Quaternion();
+      // Step 1: rotate plane so its Y axis points along -dir (we built it
+      // with length going from base to tip along +Y, so flip it to point at target)
+      quat.setFromUnitVectors(up, dir.clone().multiplyScalar(-1));
+      mesh.quaternion.copy(quat);
+      // Step 2: rotate around dir axis so plane faces the path (camera comes from +z direction)
+      mesh.rotateOnAxis(dir, Math.PI / 2);
+
+      rays.add(mesh);
+    }
+
+    this.scene.add(rays);
+    this.godRays = rays;
   }
 
   // ─── Frog placeholder: low-poly body + head on a rock at the campfire ───
@@ -1792,6 +1963,41 @@ export class World {
     // Fireflies drift shader time
     if (this.firefliesMat) {
       this.firefliesMat.uniforms.uTime.value = elapsed;
+    }
+
+    // God rays: fade in as camera approaches the clearing
+    if (this.godRays && this.camCtrl) {
+      const camZ = this.camCtrl.camera.position.z;
+      // Fade in when camZ < -30, full opacity at camZ = -45
+      const t = THREE.MathUtils.clamp((-30 - camZ) / -15, 0, 1);  // 0 at -30, 1 at -45
+      this.godRays.children.forEach(mesh => {
+        if (mesh.material && mesh.material.uniforms) {
+          mesh.material.uniforms.uOpacity.value = (0.18 + Math.sin(elapsed * 0.5 + mesh.position.x) * 0.04) * t;
+        }
+      });
+    }
+
+    // Fire sprites: each faces camera (billboard), flickers scale/opacity,
+    // drifts slightly upward with subtle sway.
+    if (this.fireSprites && this.fireSprites.length > 0 && this.camCtrl) {
+      const camPos = this.camCtrl.camera.position;
+      for (const s of this.fireSprites) {
+        // Billboard: face the camera
+        s.mesh.lookAt(camPos);
+        // Flicker scale (parabolic across cycle)
+        const cycle = (elapsed * s.speed + s.phase) % 1.0;
+        const flicker = Math.sin(cycle * Math.PI);   // 0 → 1 → 0 across cycle
+        s.mesh.scale.set(
+          s.scale * (0.85 + flicker * 0.3),
+          s.scale * (0.7 + flicker * 0.5),
+          1,
+        );
+        // Opacity also flickers
+        s.mesh.material.opacity = 0.6 + flicker * 0.4;
+        // Vertical drift (slow up)
+        const driftY = Math.sin(elapsed * s.speed * 0.7 + s.phase) * 0.15;
+        s.mesh.position.y = s.baseY + driftY;
+      }
     }
   }
 
