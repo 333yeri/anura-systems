@@ -4,29 +4,27 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Brand */
-  --void-000: #0D0F12;
-  --mist-100: #1A1D24;
+  /* Brand — board palette (Option A: dark warm premium) */
+  --void-000: #080808;          /* void_000  — true black */
+  --mist-100: #1C1E21;          /* mist_100  — cool charcoal */
+  --peat-05:  #1A241A;          /* peat_05   — warm charcoal, moss undertone */
+  --spectrum-200: #8A9098;      /* spectrum  — slate gray for borders / type */
+  --ember-amber: #D4AF37;       /* embers_01 — metallic gold accent */
+  --spectrum-white: #FFFFFF;
+
+  /* Derived from board palette (keep within A) */
+  --ember-glow: rgba(212, 175, 55, 0.42);
+  --moss-deep: #1F3A1A;         /* working tint for canopy */
+  --frog-green: #4A7A2E;
   --stone-200: #232830;
   --slate-400: #4A5260;
   --pearl-700: #B8BCC4;
   --pearl-300: #E8E9EB;
-  --spectrum-white: #FFFFFF;
 
-  /* Accents */
-  --phosphor-green: #4AFF8C;
-  --phosphor-green-dim: #2A8A52;
-  --neon-cyan: #00F3FF;
-  --ghost-cyan: rgba(0, 243, 255, 0.35);
-  --ember-amber: #D4AF37;
-  --ember-glow: rgba(212, 175, 55, 0.42);
-  --frog-green: #4A7A2E;
-  --moss-deep: #1F3A1A;
-
-  /* Type */
-  --font-display: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
-  --font-mono: 'Share Tech Mono', 'Space Mono', monospace;
-  --font-body: 'Inter', system-ui, sans-serif;
+  /* Type — locked from board. PP Neue Montreal is paid, Inter is the closest open-source neo-grotesque substitute. Will swap to PP once license is acquired. */
+  --font-display: 'PP Neue Montreal', 'Inter', 'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-accent: 'Commit Mono', 'JetBrains Mono', monospace;
 }
 
 /* ── Reset ── */
@@ -38,7 +36,7 @@ html, body {
   overflow: hidden;
   background: var(--void-000);
   color: var(--spectrum-white);
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   cursor: default;

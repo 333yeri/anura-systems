@@ -4,23 +4,27 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-// ─── Brand palette ──────────────────────────────────────────────────────────
-const VOID_BG     = 0x0D0F12; // void-000
-const MOSS_DARK   = 0x1F3A1A; // ground
+// ─── Brand palette — board Option A (dark warm premium) ─────────────────────
+const VOID_BG     = 0x080808; // void_000   — true black
+const MIST_BG     = 0x1C1E21; // mist_100   — cool charcoal
+const PEAT_BG     = 0x1A241A; // peat_05    — warm charcoal w/ moss undertone
+const SPECTRUM    = 0x8A9098; // spectrum   — slate gray
+const EMBER_AMBER = 0xD4AF37; // embers_01  — metallic gold accent
+
+// Derived scene colors (all stay inside the board palette family)
+const MOSS_DARK   = 0x1F3A1A; // canopy tint (moss undertone)
 const MOSS_DEEP   = 0x14271A; // ground vertex tint
-const TRUNK_DARK  = 0x4a3020; // trunks (was 0x1a0f08 — too dark)
-const CANOPY_A    = 0x2a5a2a; // darkest canopy (was 0x0a1a0a — too dark)
-const CANOPY_B    = 0x3a6a3a; // mid canopy (was 0x1a2a1a — too dark)
-const GROUND_COL  = 0x1a2a1a; // mossy ground
-const TRUNK_GROUND = 0x3a3028; // ground-trunk blend
-const FROG_BODY   = 0x2a4a1a; // frog
-const EMBER_AMBER = 0xd4af37; // fire + amber light
-const BIOLUM_CYAN = 0x00F3FF; // mushroom glow
-const MOON_BLUE   = 0x6a8aff; // moonlight
-const AMBIENT_COLD= 0x111122; // ambient
-const STAR_WHITE  = 0xffffff;
-const ROCK_GREY   = 0x2a2a26;
-const MOSS_HANG   = 0x3a5a2a; // hanging moss on the special tree
+const TRUNK_DARK  = 0x4a3020; // trunks (still warm to read in low light)
+const CANOPY_A    = 0x2a5a2a; // darkest canopy
+const CANOPY_B    = 0x3a6a3a; // mid canopy
+const GROUND_COL  = 0x1A241A; // mossy ground (now uses peat_05)
+const TRUNK_GROUND = 0x3a3028;
+const FROG_BODY   = 0x4A7A2E; // frog (deep moss, warm)
+const MOON_BLUE   = 0xC8D8FF; // pale moonlight (board: cold but soft)
+const AMBIENT_COLD= 0x1C1E21; // mist ambient (board, not the cold blue I had)
+const STAR_WHITE  = 0xFFFFFF;
+const ROCK_GREY   = 0x2A2A26;
+const MOSS_HANG   = 0x3a5a2a;
 
 // ─── Tiny seeded PRNG (mulberry32) — deterministic placement ───────────────
 function mulberry32(seed) {
