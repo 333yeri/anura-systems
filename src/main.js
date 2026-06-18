@@ -64,6 +64,9 @@ const world      = new World(scene);
 const camCtrl    = new CameraController(camera, canvas);
 const hotspots   = new HotspotSystem(scene, camera, renderer, canvas);
 
+// Wire camCtrl into world so animated props (frog, etc.) can read camera state
+world.camCtrl = camCtrl;
+
 // Register hotspots from world
 hotspots.registerHotspots(world.getHotspots());
 

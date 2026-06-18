@@ -347,7 +347,7 @@ export class World {
   //   - distant haze fade so the water melts into fog
   // The water is what tells the user "this is a swamp" not "a forest on grass".
   createSwampWater() {
-    const size = 120;
+    const size = 220;  // covers the full path range (-80 to +85) plus margin
     const geom = new THREE.PlaneGeometry(size, size, 1, 1);
     geom.rotateX(-Math.PI / 2);
 
@@ -776,7 +776,7 @@ export class World {
   // additive translucent — gives a "god ray through canopy" feel without
   // volumetric raymarching. ~3% GPU cost.
   createGroundFog() {
-    const fogGeom = new THREE.PlaneGeometry(120, 120, 1, 1);
+    const fogGeom = new THREE.PlaneGeometry(220, 220, 1, 1);
     fogGeom.rotateX(-Math.PI / 2);
 
     const fogMat = new THREE.ShaderMaterial({
@@ -1574,12 +1574,16 @@ export class World {
     rock.scale.set(1.0, 0.55, 1.2);
     this.scene.add(rock);
 
+    // Frog starts at the rock (Act 4 destination). update() will reposition
+    // it to hop ahead of the camera as the visitor scrolls.
     group.position.set(1.4, 0.42, -28.2);
     group.rotation.y = Math.PI; // face camera (positive z direction)
     this.scene.add(group);
 
     this.frog = group;
     this.frogBaseY = group.position.y;
+    // Resting position (where the frog returns at Act 4)
+    this.frogRestPos = new THREE.Vector3(1.4, 0.42, -28.2);
 
     // Hotspot: frog (proxy sphere for raycasting; visible mesh = frog group)
     const hotspotMesh = new THREE.Mesh(
@@ -1750,12 +1754,40 @@ export class World {
         2.5 + Math.sin(elapsed * 9.0) * 0.25 + Math.sin(elapsed * 17.3) * 0.15;
     }
 
-    // Frog idle bob
-    if (this.frog) {
-      this.frog.position.y = this.frogBaseY + Math.sin(elapsed * 1.5) * 0.05;
-      // Tiny head turn — gives it a "looking around" feel
-      this.frog.rotation.y = Math.PI + Math.sin(elapsed * 0.7) * 0.15;
-    }
+    // Frog: hops ahead of camera as you scroll, returns to rest at Act 4.
+        // Camera path goes from z=80 (start) to z=-65 (end). The visitor walks
+        // in the -z direction (decreasing z). Frog should be ~5m ahead of the
+        // camera (more negative z) while walking, then sit on its rock once
+        // we arrive at Act 4.
+        if (this.frog && this.camCtrl) {
+          const camPos = this.camCtrl.camera.position;
+          const camProgress = this.camCtrl.progress;
+          // Arrived = progress > 0.95 (Act 4)
+          if (camProgress > 0.95) {
+            // Sit on the rock, bob slightly
+            this.frog.position.x = this.frogRestPos.x;
+            this.frog.position.z = this.frogRestPos.z;
+            this.frog.position.y = this.frogRestPos.y + Math.sin(elapsed * 1.5) * 0.05;
+            this.frog.rotation.y = Math.PI + Math.sin(elapsed * 0.7) * 0.15;
+          } else {
+            // Hop ahead of camera: 5m ahead in the direction of travel.
+            // Direction of travel = sign of camera velocity (we walk toward -z,
+            // so ahead = camPos.z + (-5) = camPos.z - 5).
+            // But this should use the path tangent, not camera position directly,
+            // Hop ahead of camera: 5m ahead in the direction of travel (negative z).
+                    const aheadZ = camPos.z - 5.0;
+                    // Slight lateral sway so frog isn't dead-center
+                    const swayX = Math.sin(elapsed * 0.8 + camProgress * 20) * 0.8;
+                    // Hop cycle: parabolic bounce at ~2 hops per second
+                    const hopPhase = elapsed * 4.0 + camProgress * 30;
+                    const hopHeight = Math.max(0, Math.sin(hopPhase)) * 0.4;
+                    // Snap to target (camera moves smoothly, so this is smooth enough)
+                    this.frog.position.x = swayX;
+                    this.frog.position.z = aheadZ;
+                    this.frog.position.y = 0.42 + hopHeight;
+                    this.frog.rotation.y = 0;
+          }
+        }
 
     // Fireflies drift shader time
     if (this.firefliesMat) {
