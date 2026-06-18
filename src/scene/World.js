@@ -144,8 +144,12 @@ export class World {
   }
 
   setupFog() {
-    // Lighter fog so trees and lanterns read clearly. Color still moody.
-    this.scene.fog = new THREE.FogExp2(0x1a2028, 0.018);
+    // Heavy fog (Q4=a: visibility ~15m, trees fade into white-grey mist).
+    // FogExp2 density 0.065 → 50% visibility at ~10m, 90% obscured at ~35m.
+    // Color matches the dark warm premium palette (peat_05 #1A241A).
+    this.scene.fog = new THREE.FogExp2(0x1A241A, 0.065);
+    // Background also tints to fog color (visible behind trees at distance).
+    this.scene.background = new THREE.Color(0x1A241A);
   }
 
   // ─── Ground: shallow mud patches scattered across the swamp water plane ─
@@ -261,6 +265,8 @@ export class World {
     this.createBarkTufts();
     this.createCypressKnees();    // knobby protrusions from water
     this.createCattails();        // vertical grass stalks breaking the surface
+    this.createFireflies();       // glowing drifting particles in the air
+    this.createTrail();           // muddy path mesh that follows the camera route
   }
 
   // Inverted sphere with vertical gradient (deep void → misty blue) + a
@@ -570,6 +576,200 @@ export class World {
     }
     this.scene.add(group);
     this.cattails = group;
+  }
+
+  // ─── Fireflies: 80 small glowing particles drifting through the air ─────
+  // Bioluminescent dots that float in lazy arcs. Read as "magic" / "alive
+  // forest" without being too literal. Distributed along the full camera
+  // path so visitors see them throughout the walk.
+  createFireflies() {
+    const COUNT = 80;
+    const rng = mulberry32(0xF1EF1E5);
+
+    const positions = new Float32Array(COUNT * 3);
+    const seeds     = new Float32Array(COUNT);
+    const sizes     = new Float32Array(COUNT);
+
+    // Path points to anchor fireflies near (so they cluster in interesting
+    // areas rather than evenly filling the whole world box).
+    const anchorPts = [
+      [0, 75], [-1, 50], [0, 30], [-2, 10], [0, -10], [1, -25], [0, -40], [0, -55],
+    ];
+
+    for (let i = 0; i < COUNT; i++) {
+      // Pick a random anchor and offset around it
+      const [ax, az] = anchorPts[Math.floor(rng() * anchorPts.length)];
+      const x = ax + (rng() - 0.5) * 16;
+      const z = az + (rng() - 0.5) * 14;
+      // Height: between 0.5m (low) and 3m (high in canopy)
+      const y = 0.5 + rng() * 2.5;
+
+      positions[i*3 + 0] = x;
+      positions[i*3 + 1] = y;
+      positions[i*3 + 2] = z;
+
+      seeds[i] = rng() * 100.0;
+      sizes[i] = 0.04 + rng() * 0.06;  // 4-10cm "bug" size at this scale
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('aSeed',    new THREE.BufferAttribute(seeds, 1));
+    geom.setAttribute('aSize',    new THREE.BufferAttribute(sizes, 1));
+
+    // Custom shader: glowing warm-amber dots with pulsing brightness.
+    // Uses a point cloud with a soft disc texture (procedural).
+    const fireflyMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: {
+        uTime:     { value: 0 },
+        uColor:    { value: new THREE.Color(0xFFCB6B) },  // warm amber
+        uColorHot: { value: new THREE.Color(0xFFF4D0) },  // hot core
+      },
+      vertexShader: /* glsl */`
+        attribute float aSeed;
+        attribute float aSize;
+        uniform float uTime;
+        varying float vAlpha;
+        varying float vGlow;
+        void main() {
+          // Drift in a lazy Lissajous pattern based on seed
+          vec3 p = position;
+          float t = uTime + aSeed * 6.28;
+          p.x += sin(t * 0.6) * 0.6;
+          p.y += sin(t * 0.9 + aSeed * 1.7) * 0.4;
+          p.z += cos(t * 0.5 + aSeed * 2.3) * 0.6;
+
+          vec4 mvPos = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mvPos;
+
+          // Distance-attenuated size (bigger when close)
+          float dist = -mvPos.z;
+          gl_PointSize = aSize * 600.0 / dist;
+
+          // Pulse: brighter at certain phases of the seed cycle
+          float pulse = 0.5 + 0.5 * sin(t * 1.3);
+          vAlpha = pulse;
+          vGlow  = pulse;
+        }
+      `,
+      fragmentShader: /* glsl */`
+        uniform vec3 uColor;
+        uniform vec3 uColorHot;
+        varying float vAlpha;
+        varying float vGlow;
+        void main() {
+          // Distance from center of the point
+          vec2 d = gl_PointCoord - 0.5;
+          float r = length(d);
+          if (r > 0.5) discard;
+          // Soft disc with hot core
+          float core = 1.0 - smoothstep(0.0, 0.15, r);
+          float halo = 1.0 - smoothstep(0.0, 0.5, r);
+          vec3 col = mix(uColor, uColorHot, core);
+          float a = halo * vAlpha * 0.7;
+          gl_FragColor = vec4(col, a);
+        }
+      `,
+    });
+
+    const points = new THREE.Points(geom, fireflyMat);
+    points.name = 'fireflies';
+    this.scene.add(points);
+    this.fireflies = points;
+    this.firefliesMat = fireflyMat;
+  }
+
+  // ─── Trail: muddy path mesh following the camera route ─────────────────
+  // Reads as a worn walking trail through the forest — darker brown than
+  // the mossy ground, slight elevation, with subtle noise displacement.
+  // Built as a tube along the camera path keyframes, with custom UVs for
+  // procedural dirt texture (computed in shader).
+  createTrail() {
+    // Sample the camera path at uniform arc-length intervals
+    const SAMPLES = 80;
+    const WIDTH = 1.8;  // meters — narrower than you think, "narrow muddy trail"
+    const pathPoints = [];
+
+    // Use the same camera path keyframes as Camera.js
+    const keys = [
+      [0, 0, 80], [-1, 0, 50], [0, 0, 20], [-2, 0, -10],
+      [1, 0, -22], [0, 0, -45], [0, 0, -65],
+    ];
+    const curve = new THREE.CatmullRomCurve3(
+      keys.map(([x,y,z]) => new THREE.Vector3(x, y, z)),
+      false, 'catmullrom', 0.35,
+    );
+
+    for (let i = 0; i < SAMPLES; i++) {
+      const t = i / (SAMPLES - 1);
+      const p = curve.getPointAt(t);
+      // Offset up slightly so trail sits ABOVE swamp water
+      p.y = 0.05;
+      pathPoints.push(p);
+    }
+
+    // Build a triangle strip mesh manually along the curve
+    const verts = [];
+    const uvs = [];
+    const indices = [];
+    const tangents = [];
+
+    for (let i = 0; i < SAMPLES; i++) {
+      const p = pathPoints[i];
+      // Tangent = derivative of curve (use neighbor difference for stability)
+      const tNext = i < SAMPLES - 1 ? pathPoints[i+1] : pathPoints[i];
+      const tPrev = i > 0 ? pathPoints[i-1] : pathPoints[i];
+      const tangent = new THREE.Vector3().subVectors(tNext, tPrev).normalize();
+      // Perpendicular in XZ plane
+      const perp = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+
+      // Two vertices: left edge and right edge
+      const left  = p.clone().add(perp.clone().multiplyScalar(-WIDTH/2));
+      const right = p.clone().add(perp.clone().multiplyScalar( WIDTH/2));
+
+      verts.push(left.x, left.y, left.z);
+      verts.push(right.x, right.y, right.z);
+
+      // UVs: u goes 0 (left) to 1 (right), v goes along path
+      uvs.push(0, i / (SAMPLES - 1));
+      uvs.push(1, i / (SAMPLES - 1));
+
+      if (i < SAMPLES - 1) {
+        const a = i * 2;       // left-i
+        const b = i * 2 + 1;   // right-i
+        const c = (i+1) * 2;   // left-(i+1)
+        const d = (i+1) * 2 + 1; // right-(i+1)
+        indices.push(a, b, c);
+        indices.push(b, d, c);
+      }
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geom.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+    geom.setIndex(indices);
+    geom.computeVertexNormals();
+
+    // Muddy trail material: warm brown with subtle noise to read as dirt.
+    // Use simple MeshStandardMaterial so it catches moonlight + campfire light.
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x2A1F12,          // dark warm brown
+      roughness: 0.95,
+      metalness: 0.0,
+      // Slight emissive to avoid pure black under canopy
+      emissive: 0x0A0805,
+      emissiveIntensity: 0.3,
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.name = 'muddyTrail';
+    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+    this.scene.add(mesh);
+    this.trail = mesh;
   }
 
   // Thin horizontal fog plane between camera path and the trees. Renders as
@@ -1555,6 +1755,11 @@ export class World {
       this.frog.position.y = this.frogBaseY + Math.sin(elapsed * 1.5) * 0.05;
       // Tiny head turn — gives it a "looking around" feel
       this.frog.rotation.y = Math.PI + Math.sin(elapsed * 0.7) * 0.15;
+    }
+
+    // Fireflies drift shader time
+    if (this.firefliesMat) {
+      this.firefliesMat.uniforms.uTime.value = elapsed;
     }
   }
 
