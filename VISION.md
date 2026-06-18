@@ -428,28 +428,120 @@ Decision: Yeray confirmed these three are good. Final.
 
 ---
 
-## §17 — Characters ⏳ PENDING — assets not yet identified
+## §17 — Characters ✅ LOCKED 2026-06-18 — build target defined
 
 ### Frog (guide character, Acts 1–4)
 
 Rotates in Act 1 loading screen. Tumbling through sky in Act 2.
-Leads the user along the path in Act 3. Hops off-screen in Act 4.
+**Hops along the path ahead of the visitor in Act 3** (locked Q5=a —
+2026-06-18: "frog hops ahead of camera as you scroll, always 3–5m in
+front"). Visible at Act 4 clearing when visitor arrives.
 
-Asset status: **we don't have a frog GLB.** Decision pending:
-- (a) Yeray sources/builds a frog
-- (b) We source from a free/paid 3D library
-- (c) Procedural in Three.js (low-poly stylized)
+**Asset status 2026-06-18:** Yeray generating via Gemini but waiting on
+free trial reset. Procedural low-poly frog is the placeholder until a
+better asset arrives. Build proceeds with placeholder; swap when
+delivered.
 
 ### Yeri (character at campfire, Act 4)
 
-Sits on log by fire. ~30k polys, GTA IV era. Firelight on face.
+**Sitting on a log on the RIGHT side of the frame** (locked 2026-06-18:
+"yeri sitting on a log on the right side off the frame"). Firelight
+on face from the campfire (front-left). Roasting a marshmallow.
 
-**Open question:** is "Yeri" your namesake (Yeray), or a different
-character also named Yeri? We have a 317k-tris `yeri.glb` rigged
-humanoid that hasn't been placed yet. If "Yeri" is meant to be a
-stylized version of you, we need to either (a) decimate that GLB to
-~30k tris, (b) build a new stylized character from scratch, or
-(c) commission an artist.
+**Asset:** `yeri.glb` (317k tris, rigged humanoid, single material,
+1.81m tall) — Yeray's own character. **High-end, NOT low-poly**
+(locked 2026-06-18: "it will be high end and we refine performance
+later it will be high quality game material. we remove the low poly
+should be out off the design name").
+
+**Tri budget:** ignore for now. Use 317k tris as-is. Refine performance
+later per Yeray's direction.
+
+### Marshmallow + stick
+
+White sphere on thin cylinder. Placeholder until Yeray generates a
+better one (waiting on free trial reset).
+
+---
+
+## §17b — Forest build parameters ✅ LOCKED 2026-06-18
+
+Yeray answered the 5 build questions:
+
+| Q | Answer | Implication |
+|---|---|---|
+| **Q1 tree density** | C | Dense — ~100 trees, three depth layers |
+| **Q2 camera start** | A | Deep in forest, ~60s walk through it before reaching the clearing |
+| **Q3 darkness** | B | Medium — moonlight + ambient, ~20m visibility |
+| **Q4 fog density** | A | Heavy fog — visibility ~15m, trees fade into white-grey mist |
+| **Q5 frog behavior** | A | Frog hops ahead of camera as you scroll, always 3–5m in front |
+
+### Build order (locked 2026-06-18)
+
+1. **Dense swamp + forest** (Acts 2+3 merged) — the whole world
+2. **Act 4 clearing** with Yeri on log (right of frame), campfire
+   (front-left), tent (right-rear), lantern glowing inside tent
+3. **Act 1 CRT gate** — deferred, comes after forest is done
+
+**Act 5 REMOVED** — no questionnaire, no terminal "ENTER ACCESS
+ENVELOPE". Act 4 is the final destination. Clickable glowing items
+in the clearing will open popups with more info (built later).
+
+---
+
+## §17c — Tent (Act 4) ✅ LOCKED 2026-06-18
+
+**Source:** Gaussian splat (`.ply` format, 131,072 splats, 8.6MB)
+emailed by Yeray 2026-06-18.
+
+**Path chosen: C** — splat as REFERENCE, build simple mesh tent in
+Three.js.
+
+**Reference read from splat (3 views inspected 2026-06-18):**
+- Shape: classic A-frame ridge tent, ~1m × 1m footprint, ~1.5m tall
+- Canvas: warm rusty brown `#5A3F2C` (sun-faded)
+- Guy lines: 6 total (4 corners + 2 mid-sides), dark brown
+- Open front, horizontal ridge pole visible at top
+- **Lantern** hanging from ridge pole, slightly inside-right of
+  center, glows amber `#FFB347` with warm halo
+- **Bag** (duffel/bedroll) at front-right corner, olive-green
+- Ground around tent: dark dirt `#1A1208`
+
+**Mesh build plan:**
+- ~200 triangles total (6 triangles tent body + cylinders for poles
+  and guy lines)
+- Canvas material with rusty-brown color + procedural fabric texture
+- Tent receives moonlight + lantern point light + campfire light
+- Tent casts shadow on ground
+- **Lantern is a real PointLight** — casts warm amber on inside of
+  canvas and onto ground in front of tent
+- Bag: torus + capsule, olive-green material
+
+---
+
+## §17d — Campfire (Act 4) ✅ LOCKED 2026-06-18
+
+**Fire sprite:** `assets/sprites/flame-main.png` (597KB, transparent
+background, three flame variants in one image — tall/thin, wide/short,
+multi-tongued). Received from Yeray via email 2026-06-18 (msg 30393).
+
+**Ember particle:** `assets/sprites/ember.png` (114KB, transparent
+background, small glowing orange dot). Received 2026-06-18 (msg 30394,
+subject "flame particle").
+
+**Smoke:** pending — Yeray will generate later if wanted.
+
+**Build plan:**
+- Simple log: cylinder with bark color (low-poly, ~30 tris)
+- 25-40 flame sprites stacked above the log, randomized scale and
+  position, billboarded to camera
+- Each sprite fades in/out over ~0.8s life cycle
+- Random sprite variant from the 3 flame shapes (no visible loop)
+- Amber PointLight at fire base casts warm light on Yeri, tent,
+  nearby trees
+- 30-50 ember particles floating up from fire, fading as they rise
+- **Real lighting affects surrounding objects** (Yeri's face glows
+  orange from campfire)
 
 ---
 
