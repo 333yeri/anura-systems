@@ -804,93 +804,185 @@ export class World {
   }
 
   // ─── Real GLB-loaded swamp trees — PBR-shaded, high quality ──────────────
-  // Loaded asynchronously; build() does not block. Falls back to procedural
-  // trees via createForest() if the load fails or the file is missing.
+  // Loads all 5 tree variants from email attachments and distributes them
+  // across a ±60m × 145m area along the camera path (deep forest → clearing).
+  // Three depth layers: close-up (large), midground, background (fog-faded).
+  // Loaded asynchronously; falls back to procedural trees if all fail.
   loadGLBTrees() {
     this.glbTrees = [];
     this.glbReady = false;
     const loader = new GLTFLoader();
-    loader.load(
-      '/assets/models/tree.glb',
-      (gltf) => {
-        const src = gltf.scene;
 
-        // Fix texture colorSpaces: baseColor is sRGB, normal/roughness are linear.
-        src.traverse((obj) => {
-          if (!obj.isMesh) return;
-          const mat = obj.material;
-          if (!mat) return;
-          if (mat.map)             mat.map.colorSpace           = THREE.SRGBColorSpace;
-          if (mat.normalMap)       mat.normalMap.colorSpace    = THREE.NoColorSpace;
-          if (mat.roughnessMap)    mat.roughnessMap.colorSpace = THREE.NoColorSpace;
-          if (mat.metalnessMap)    mat.metalnessMap.colorSpace = THREE.NoColorSpace;
-          if (mat.aoMap)           mat.aoMap.colorSpace        = THREE.NoColorSpace;
-          if (mat.emissiveMap)     mat.emissiveMap.colorSpace  = THREE.SRGBColorSpace;
-          // Leaves use alpha cutout — the GLB specifies alphaMode but be explicit.
-          if (mat.alphaMap || obj.name?.toLowerCase().includes('leaf')) {
-            mat.transparent = false;     // cutout, not blending
-            mat.alphaTest = 0.5;
-            mat.side = THREE.DoubleSide;
-            mat.depthWrite = true;
-          }
-        });
+    // The 5 tree files. tree-1 and tree-2 are duplicates — weight accordingly.
+    const treeFiles = [
+      { file: 'tree.glb',   weight: 1.0 },
+      { file: 'tree-1.glb', weight: 1.0 },
+      { file: 'tree-2.glb', weight: 0.5 },   // duplicate of tree-1, less common
+      { file: 'tree-3.glb', weight: 0.7 },   // smaller tree, used for far layer
+      { file: 'tree-4.glb', weight: 1.0 },
+    ];
 
-        // Placement table — these are the canonical tree positions that
-        // match the camera path keyframes (kept in sync with createHangingMossTree,
-        // mushrooms, and hotspot positions). Avoid the camera path corridor.
-        // Source mesh is ~62 units tall; we scale to ~7–11 units (target tree height).
-        const placements = [
-          { x:  6.0, z:  10, s: 0.13, rot:  0.4 },
-          { x: -7.5, z:   4, s: 0.15, rot: -0.8 },
-          { x:  4.2, z: -15, s: 0.16, rot:  1.1 },  // matches hangingMossTree special tree
-          { x: -6.0, z: -22, s: 0.14, rot: -0.3 },
-          { x:  7.0, z:  18, s: 0.12, rot:  2.1 },
-          { x: -4.0, z:  22, s: 0.11, rot:  0.9 },
-          { x:  8.0, z:  -4, s: 0.13, rot: -1.7 },
-          { x: -9.0, z: -10, s: 0.15, rot:  0.6 },
-          { x:  5.0, z: -28, s: 0.14, rot: -0.5 },  // near campfire
-          { x: -3.0, z:  14, s: 0.12, rot:  1.4 },
-        ];
+    let pendingLoads = treeFiles.length;
+    const loadedScenes = {};   // filename → gltf.scene
+    const self = this;
 
-        for (const p of placements) {
-          const clone = src.clone(true);   // deep clone so we can transform independently
-          clone.position.set(p.x, 0, p.z);
-          clone.rotation.y = p.rot;
-          clone.scale.setScalar(p.s);
-          clone.name = 'glbTree_' + p.x.toFixed(0) + '_' + p.z.toFixed(0);
-          clone.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
-          this.scene.add(clone);
-          this.glbTrees.push(clone);
+    function onAllLoaded() {
+      // ── POISSON-DISC-LIKE TREE PLACEMENT ───────────────────────────────
+      // Avoid the camera path corridor (±2.5m around path centerline).
+      // Distribute across 3 depth layers, biased by layer.
 
-          // Add bark tuft + mossy rocks at base so the tree reads as rooted
-          this.addTuftsForTree(clone.position);
+      const rng = mulberry32(0xA17EE);  // deterministic
+
+      // Helper: minimum distance from any existing tree (in 2D x/z plane)
+      function tooCloseToExisting(x, z, minDist) {
+        for (const t of self.glbTrees) {
+          const dx = t.position.x - x;
+          const dz = t.position.z - z;
+          if (dx*dx + dz*dz < minDist*minDist) return true;
         }
-
-        // Hide procedural fallback once GLB trees are visible — they're lower
-        // quality and overlap with the real ones.
-        if (this.forest) {
-          this.forest.trunkInst.visible    = false;
-          this.forest.canopyInst.visible   = false;
-          this.forest.canopyInst2.visible  = false;
-        }
-
-        // Compute combined bbox of all glb trees for fog/visibility diagnostics
-        const bbox = new THREE.Box3();
-        for (const t of this.glbTrees) bbox.expandByObject(t);
-
-        this.glbReady = true;
-        this.glbBbox = bbox;
-        console.info('[anura] GLB trees loaded:', this.glbTrees.length,
-                     'bbox=', bbox.min.toArray().map(n => n.toFixed(1)),
-                     'max=', bbox.max.toArray().map(n => n.toFixed(1)));
-        window.dispatchEvent(new CustomEvent('anura:treesReady'));
-      },
-      undefined,
-      (err) => {
-        console.warn('[anura] tree.glb failed to load — falling back to procedural trees:', err);
-        // Procedural fallback already in scene from createForest()
+        return false;
       }
-    );
+
+      // Helper: distance from camera path at this point. We approximate by
+      // checking against the few keyframes (good enough since the path is
+      // gentle).
+      const pathPts = [
+        [0, 80], [-1, 50], [0, 20], [-2, -10], [1, -22], [0, -45], [0, -65],
+      ];
+      function pathCorridorDistance(x, z) {
+        let minD2 = Infinity;
+        for (const [px, pz] of pathPts) {
+          const dx = x - px;
+          const dz = z - pz;
+          const d2 = dx*dx + dz*dz;
+          if (d2 < minD2) minD2 = d2;
+        }
+        return Math.sqrt(minD2);
+      }
+
+      // Layer config: number, lateral spread, scale, min spacing
+      const layers = [
+        // Foreground — close-up large trees along path, scale 1.0×
+        { count: 24, xRange: 28, zRange: [-72, 82], scale: [0.14, 0.18], corridor: 3.5, minDist: 4.0, variants: [0, 1, 3, 4] },
+        // Midground — middle distance, scale 0.7×
+        { count: 36, xRange: 50, zRange: [-75, 82], scale: [0.10, 0.14], corridor: 4.0, minDist: 5.0, variants: [0, 1, 2, 3, 4] },
+        // Background — far back, scale 0.5×, heavily fogged
+        { count: 40, xRange: 80, zRange: [-78, 85], scale: [0.08, 0.12], corridor: 5.0, minDist: 6.0, variants: [2, 3] },
+      ];
+
+      let placed = 0;
+      const totalTarget = layers.reduce((s, l) => s + l.count, 0);
+
+      for (const layer of layers) {
+        let layerPlaced = 0;
+        let attempts = 0;
+        const maxAttempts = layer.count * 40;  // safety bail
+
+        while (layerPlaced < layer.count && attempts < maxAttempts) {
+          attempts++;
+          // Pick random position in layer bounds
+          const x = (rng() - 0.5) * 2 * layer.xRange;
+          const z = layer.zRange[0] + rng() * (layer.zRange[1] - layer.zRange[0]);
+
+          // Skip if too close to camera path corridor
+          if (pathCorridorDistance(x, z) < layer.corridor) continue;
+
+          // Skip if too close to existing tree
+          if (tooCloseToExisting(x, z, layer.minDist)) continue;
+
+          // Pick a tree variant weighted by variants array
+          const variant = layer.variants[Math.floor(rng() * layer.variants.length)];
+          const fileInfo = treeFiles[variant];
+          const src = loadedScenes[fileInfo.file];
+          if (!src) continue;  // safety
+
+          // Clone and place
+          const clone = src.clone(true);
+          const scaleVal = layer.scale[0] + rng() * (layer.scale[1] - layer.scale[0]);
+          clone.position.set(x, 0, z);
+          clone.rotation.y = rng() * Math.PI * 2;
+          clone.scale.setScalar(scaleVal);
+          clone.name = `glbTree_${variant}_${layerPlaced}`;
+
+          // Shadow + receive
+          clone.traverse((o) => {
+            o.castShadow = (layer === layers[0]);   // only foreground casts shadows (perf)
+            o.receiveShadow = true;
+          });
+
+          self.scene.add(clone);
+          self.glbTrees.push(clone);
+
+          // Add bark tuft + mossy rocks at base for foreground only
+          if (layer === layers[0]) {
+            self.addTuftsForTree(clone.position);
+          }
+
+          layerPlaced++;
+          placed++;
+        }
+      }
+
+      // Hide procedural fallback
+      if (self.forest) {
+        self.forest.trunkInst.visible    = false;
+        self.forest.canopyInst.visible   = false;
+        self.forest.canopyInst2.visible  = false;
+      }
+
+      // Compute combined bbox
+      const bbox = new THREE.Box3();
+      for (const t of self.glbTrees) bbox.expandByObject(t);
+
+      self.glbReady = true;
+      self.glbBbox = bbox;
+      console.info(`[anura] GLB trees placed: ${placed} / ${totalTarget} target. ` +
+                   `bbox=${bbox.min.toArray().map(n => n.toFixed(1))} to ${bbox.max.toArray().map(n => n.toFixed(1))}`);
+      window.dispatchEvent(new CustomEvent('anura:treesReady', { detail: { count: placed } }));
+    }
+
+    // Helper: fix colorSpaces on a loaded scene (same as before)
+    function fixMaterials(src) {
+      src.traverse((obj) => {
+        if (!obj.isMesh) return;
+        const mat = obj.material;
+        if (!mat) return;
+        if (mat.map)             mat.map.colorSpace           = THREE.SRGBColorSpace;
+        if (mat.normalMap)       mat.normalMap.colorSpace    = THREE.NoColorSpace;
+        if (mat.roughnessMap)    mat.roughnessMap.colorSpace = THREE.NoColorSpace;
+        if (mat.metalnessMap)    mat.metalnessMap.colorSpace = THREE.NoColorSpace;
+        if (mat.aoMap)           mat.aoMap.colorSpace        = THREE.NoColorSpace;
+        if (mat.emissiveMap)     mat.emissiveMap.colorSpace  = THREE.SRGBColorSpace;
+        if (mat.alphaMap || obj.name?.toLowerCase().includes('leaf')) {
+          mat.transparent = false;
+          mat.alphaTest = 0.5;
+          mat.side = THREE.DoubleSide;
+          mat.depthWrite = true;
+        }
+      });
+    }
+
+    // Fire all 5 loads
+    treeFiles.forEach(({ file }) => {
+      loader.load(
+        `/assets/models/${file}`,
+        (gltf) => {
+          fixMaterials(gltf.scene);
+          loadedScenes[file] = gltf.scene;
+          pendingLoads--;
+          if (pendingLoads === 0) onAllLoaded();
+        },
+        undefined,
+        (err) => {
+          console.warn(`[anura] ${file} failed to load:`, err.message || err);
+          pendingLoads--;
+          if (pendingLoads === 0) {
+            // If any loaded, proceed; otherwise keep procedural fallback
+            if (Object.keys(loadedScenes).length > 0) onAllLoaded();
+          }
+        }
+      );
+    });
   }
 
   // ─── Mushrooms: 30–40 bioluminescent mushrooms near path / tree bases ────

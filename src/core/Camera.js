@@ -84,20 +84,26 @@ export class CameraController {
   // --------------------------------------------------------------------
 
   buildPath() {
-    // The five keyframes that define the journey. Y is held at 1.65 m
+    // The 7 keyframes that define the journey. Y is held at 1.65 m
     // (eye-level) so the camera never rises/dips — motion is purely
     // forward with gentle lateral sway through the drift points.
+    //
+    // Path extends from z=80 (deep in forest, start) to z=-65 (campfire,
+    // Act 4 clearing). Total length ~150m, which at ~2.5m/s walking
+    // pace = ~60s of forward motion through the swamp/forest.
     this.path = new THREE.CatmullRomCurve3(
       [
-        new THREE.Vector3( 0, 1.65,  20),   // spawn (closer in so forest is visible)
-        new THREE.Vector3( 0, 1.65,   6),   // drift midpoint 1
-        new THREE.Vector3(-2, 1.65, -10),   // drift midpoint 2
-        new THREE.Vector3( 1, 1.65, -22),   // drift midpoint 3
-        new THREE.Vector3( 0, 1.65, -28),   // sanctuary / campfire
+        new THREE.Vector3( 0, 1.65,  80),    // spawn — deep in forest
+        new THREE.Vector3(-1, 1.65,  50),    // drift A — first fog layers
+        new THREE.Vector3( 0, 1.65,  20),    // drift B — original spawn
+        new THREE.Vector3(-2, 1.65, -10),    // drift C — midpoint
+        new THREE.Vector3( 1, 1.65, -22),    // drift D — path narrows
+        new THREE.Vector3( 0, 1.65, -45),    // drift E — clearing edge
+        new THREE.Vector3( 0, 1.65, -65),    // sanctuary / campfire (Act 4)
       ],
       /* closed = */ false,
       /* type   = */ 'catmullrom',
-      /* tension = */ 0.3,
+      /* tension = */ 0.35,
     );
 
     // Pre-cache the arc length so per-frame getPointAt() is uniform.
