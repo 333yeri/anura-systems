@@ -3,17 +3,19 @@
 Auto-loaded by Hermes / Cursor / any agent working in this directory.
 Read this first; do not re-derive from MEMORY.md or past transcripts.
 
-## What this is
+**⚠️ SOURCE OF TRUTH: `VISION.md` in this directory.**
+`MASTER_DOSSIER.md` is historical (June 12, pre-board).
+Everything I built before the Miro board arrived (June 18) is wrong
+in multiple ways. See VISION.md §13 for the audit. Do not trust the
+current code state — it represents what I guessed, not what Yeray
+wants.
 
-Single-page 3D cinematic canvas at **anura.systems**. Faceless digital
-architecture studio targeting the top 1% of physical craftspeople (hedge
-funds, family offices, premium brands). Pricing tiers: $8,500 / $12,000 /
-$15,000–$30,000. Lead-gen site, not a portfolio.
+## What this is (one line)
 
-Brand DNA: Swiss Brutalism × ancient swamp × CRT hacker terminal.
-The aesthetic reference is **CS:Source / CS:GO / CS2** — realistic
-proportions, sharp PBR materials, gritty moody atmosphere, baked
-lighting feel. **NOT Roblox. NOT low-poly fantasy.**
+Single-page 3D cinematic canvas at **anura.systems**. A "quiet
+infrastructure" for a new wave of small, precise, unconventional
+craftspeople. Anura is **a gate, not an agency**. Read VISION.md for
+the canonical source.
 
 ## Stack (do not change without explicit user approval)
 
