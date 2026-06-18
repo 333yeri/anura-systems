@@ -519,7 +519,38 @@ Three.js.
 
 ---
 
-## §17d — Campfire (Act 4) ✅ LOCKED 2026-06-18
+## §17e — Forest build status ✅ 2026-06-18 — 4 passes shipped to Vercel
+
+**Pass 1 — Dense tree placement + extended camera path:**
+- Camera path extended from 5 keyframes (48m) to 7 keyframes (145.6m)
+- Path: z=80 (spawn, deep forest) → z=-65 (campfire, Act 4)
+- All 5 tree GLB variants loaded (tree, tree-1, tree-2, tree-3, tree-4)
+- 100 trees placed across 3 depth layers via Poisson-disc-like rejection sampler
+- Foreground (24 trees, scale 0.14-0.18, casts shadows, gets tufts)
+- Midground (36 trees, scale 0.10-0.14)
+- Background (40 trees, scale 0.08-0.12, heavily fog-faded)
+- Path corridor avoidance: trees stay 3.5-5m from camera centerline
+
+**Pass 2 — Heavy fog + fireflies + muddy trail:**
+- Fog density 0.018 → 0.065 (Q4=a: ~15m visibility)
+- Fog color shifted to peat_05 #1A241A (board palette)
+- 80 firefly particles (custom shader, Lissajous drift, amber glow, pulsing)
+- Muddy trail mesh: 80 samples × 2 verts along path, 1.8m wide, +0.05m elevation
+
+**Pass 3 — Frog hops ahead of camera + swamp extension:**
+- Swamp water plane 120x120 → 220x220 (covers full path)
+- Ground fog plane same
+- Frog now follows camera: 5m ahead of camera, hops at 2 Hz, lateral sway
+- At Act 4 (progress > 0.95): frog returns to rock, sits down
+- Bug fix: world.camCtrl was never wired; now set in main.js
+
+**Pass 4 — God rays at clearing + fire sprites:**
+- 6 god ray planes converging toward campfire, fade in at z<-30
+- 30 billboarded fire sprites using Gemini flame-main.png (3 variants)
+- Sprite billboards face camera, flicker scale/opacity, drift upward
+
+**Pending:** Act 1 CRT gate, Act 4 final placement (Yeri on log, tent,
+lantern, marshmallow), clickable hotspot popups, scene polish pass.
 
 **Fire sprite:** `assets/sprites/flame-main.png` (597KB, transparent
 background, three flame variants in one image — tall/thin, wide/short,
