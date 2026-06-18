@@ -25,6 +25,8 @@ const AMBIENT_COLD= 0x1C1E21; // mist ambient (board, not the cold blue I had)
 const STAR_WHITE  = 0xFFFFFF;
 const ROCK_GREY   = 0x2A2A26;
 const MOSS_HANG   = 0x3a5a2a;
+// Derived on-palette glow colors (kept inside the dark warm premium vibe)
+const GHOST_MOSS  = 0x6A8C4A; // bioluminescent moss-green (mushroom glow)
 
 // ─── Tiny seeded PRNG (mulberry32) — deterministic placement ───────────────
 function mulberry32(seed) {
@@ -920,7 +922,7 @@ export class World {
     });
     const capMat = new THREE.MeshStandardMaterial({
       color: 0xb0e8e8,
-      emissive: BIOLUM_CYAN,
+      emissive: GHOST_MOSS,
       emissiveIntensity: 1.5,
       roughness: 0.4,
       metalness: 0.0,
@@ -959,10 +961,10 @@ export class World {
 
     // Subtle point lights at the brightest patch to spill colour on ground
     // (limit to two — one per major cluster — to stay budget-friendly)
-    const glowA = new THREE.PointLight(BIOLUM_CYAN, 0.35, 4, 1.6);
+    const glowA = new THREE.PointLight(GHOST_MOSS, 0.35, 4, 1.6);
     glowA.position.set(patches[3].x, 0.4, patches[3].z);
     this.scene.add(glowA);
-    const glowB = new THREE.PointLight(BIOLUM_CYAN, 0.35, 4, 1.6);
+    const glowB = new THREE.PointLight(GHOST_MOSS, 0.35, 4, 1.6);
     glowB.position.set(patches[8].x, 0.4, patches[8].z);
     this.scene.add(glowB);
 
