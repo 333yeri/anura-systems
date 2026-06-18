@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { EffectComposer }   from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass }       from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutlinePass }      from 'three/examples/jsm/postprocessing/OutlinePass.js';
 import { ShaderPass }       from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { FXAAShader }       from 'three/examples/jsm/shaders/FXAAShader.js';
@@ -28,6 +29,18 @@ const OUTLINE_PULSE_PERIOD  = 1.6;       // seconds, full sine cycle
 const OUTLINE_GLOW          = 0.8;
 const OUTLINE_THICKNESS     = 1.5;
 const HOVER_CURSOR_CLASS    = 'is-hovering-hotspot';
+
+// UnrealBloomPass — the cinematic dial. Strength is wired to camera
+// progress so different Acts have different bloom intensity:
+//   Act I  (spawn):     0.4  — restrained, distant
+//   Act II (descent):   0.7  — building
+//   Act III (mid):      1.0  — full glow
+//   Act IV (sanctuary): 1.4  — peak, campfire + mushroom halo
+// Active Theory does exactly this with their per-scene bloom variants.
+const BLOOM_STRENGTH_MIN    = 0.4;
+const BLOOM_STRENGTH_MAX    = 1.4;
+const BLOOM_RADIUS          = 0.85;
+const BLOOM_THRESHOLD       = 0.0;     // bloom everything brighter than pure black
 
 const POINTER_EVENT_NAME  = 'anura:hotspotClick';
 
@@ -87,6 +100,18 @@ export class HotspotSystem {
 
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
+    // UnrealBloomPass — between RenderPass and OutlinePass. This is the
+    // #1 missing piece from the Awwwards audit. Mushroom glow, campfire
+    // ember, lantern orbs, moonlight on water all gain agency-grade
+    // glow. Strength is mutated in setBloomFromProgress() per frame.
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(this._size.x, this._size.y),
+      BLOOM_STRENGTH_MIN,    // strength (overridden per frame)
+      BLOOM_RADIUS,          // radius
+      BLOOM_THRESHOLD        // threshold
+    );
+    this.composer.addPass(this.bloomPass);
+
     this.outlinePass = new OutlinePass(
       new THREE.Vector2(this._size.x, this._size.y),
       this.scene,
@@ -103,6 +128,17 @@ export class HotspotSystem {
     this.fxaaPass = new ShaderPass(FXAAShader);
     this._setFXAAResolution();
     this.composer.addPass(this.fxaaPass);
+  }
+
+  // Per-Act bloom dial — called each frame from update().
+  // progress is CameraController's 0..1 scroll position.
+  // Smooth ease-in-out so bloom doesn't jump at Act boundaries.
+  setBloomFromProgress(progress) {
+    if (!this.bloomPass) return;
+    const t = Math.max(0, Math.min(1, progress));
+    // Slight S-curve so mid-Acts feel like a plateau not a slope
+    const eased = t * t * (3 - 2 * t);
+    this.bloomPass.strength = BLOOM_STRENGTH_MIN + eased * (BLOOM_STRENGTH_MAX - BLOOM_STRENGTH_MIN);
   }
 
   _setFXAAResolution() {
@@ -248,7 +284,35 @@ export class HotspotSystem {
     this.renderer.getSize(this._size);
     if (this.composer)    this.composer.setSize(this._size.x, this._size.y);
     if (this.outlinePass) this.outlinePass.setSize(this._size.x, this._size.y);
+    if (this.bloomPass)   this.bloomPass.setSize(this._size.x, this._size.y);
     this._setFXAAResolution();
+  }
+
+  // Per-Act visual dial — call once per frame from main loop with the
+  // current camera progress. Wires bloom strength + tone-mapping exposure
+  // so different Acts feel different (restrained at spawn, peak at
+  // sanctuary). Per the Awwwards audit: Active Theory does this exact
+  // thing with their homebloom / cleanroom / treescene variants.
+  syncVisualsToProgress(progress) {
+    this.setBloomFromProgress(progress);
+
+    // Tone-mapping exposure ramp — slightly brighter mid-journey so the
+    // user feels "you're opening up" at Act III, then dimmer again at
+    // sanctuary so the campfire reads as the brightest thing on screen.
+    const t = Math.max(0, Math.min(1, progress));
+    const eased = t * t * (3 - 2 * t); // same ease curve as bloom
+    // exposure rises 1.55 → 1.85 → settles 1.75 at the end
+    let exposure;
+    if (eased < 0.6) {
+      // First 60%: lerp 1.55 → 1.85
+      exposure = 1.55 + (eased / 0.6) * 0.30;
+    } else {
+      // Last 40%: lerp 1.85 → 1.75
+      exposure = 1.85 - ((eased - 0.6) / 0.4) * 0.10;
+    }
+    if (this.renderer && this.renderer.toneMappingExposure !== undefined) {
+      this.renderer.toneMappingExposure = exposure;
+    }
   }
 
   // ------------------------------------------------------------------

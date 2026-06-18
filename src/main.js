@@ -94,7 +94,14 @@ function animate() {
   camCtrl.update(dt);
   hotspots.update(dt);
 
-  hotspots.render();   // composer (renders via OutlinePass + FXAA)
+  // Per-Act visuals: bloom strength + tone-mapping exposure ramp
+  // with camera progress. This is what makes different Acts feel
+  // different — restrained at spawn, peak at sanctuary.
+  if (hotspots.syncVisualsToProgress) {
+    hotspots.syncVisualsToProgress(camCtrl.progress);
+  }
+
+  hotspots.render();   // composer (renders via RenderPass + Bloom + Outline + FXAA)
 
   requestAnimationFrame(animate);
 }
