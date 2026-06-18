@@ -1,14 +1,19 @@
 /**
  * Anura Systems — main orchestrator
  * ----------------------------------------------------------------
- * Boots:
- *   1. Three.js renderer + scene
- *   2. World (forest, mushrooms, campfire, frog, stars, hotspots)
- *   3. CameraController (scroll-driven curve + parallax)
- *   4. HotspotSystem (raycaster + outline + modal)
- *   5. HUD + Act 1 gate dismissal
+ * Pass 1 (current): Lighting foundation only.
+ *   - Renderer with proper tone mapping for night scenes
+ *   - Scene background = near-black
+ *   - Subtle PBR environment (just enough to read silhouettes)
+ *   - World adds 3 lights: moon, fire, ambient
+ *   - Camera moves along path on scroll (path is invisible for now)
  *
- * Then runs a single requestAnimationFrame loop driving all updates.
+ * What is NOT here yet (added back in later passes):
+ *   - Trees, water, trail, sky, fog
+ *   - Yeri, tent, frog, campfire mesh
+ *   - Fireflies, mushrooms, god rays
+ *   - Bloom, post-processing
+ *   - Hotspots, modals
  * ----------------------------------------------------------------
  */
 
@@ -23,9 +28,11 @@ const canvas      = document.getElementById('world-canvas');
 const gate        = document.getElementById('loading-gate');
 const scrollHint  = document.getElementById('scroll-hint');
 const hudProgress = document.getElementById('hud-progress');
-const frog        = document.querySelector('.frog-wrap');
 
 // ── Renderer ──────────────────────────────────────────────────────
+// Night-scene tone mapping: ACES Filmic is the movie-industry standard.
+// It compresses bright highlights (the fire) without crushing shadows.
+// Exposure 0.85 keeps the scene dim like real night.
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: true,
@@ -34,21 +41,25 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.7;   // 1.4 → 1.7: moonlight reads, PBR textures pop
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMappingExposure = 0.85;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 // ── Scene + Camera ────────────────────────────────────────────────
 const scene = new THREE.Scene();
-// No background — the sky dome covers it. Black flash if it fails to load.
-// scene.background = new THREE.Color(0x1a2028);
+// Background is the void. The moon light + tiny ambient define what's
+// barely visible. No sky dome yet — added in a later pass.
+scene.background = new THREE.Color(0x020308);
 
-// ── IBL environment (PBR requires this — without it materials look flat/cartoony) ──
+// ── IBL environment (PBR materials require this) ─────────────────
+// When we add GLB trees in a later pass, they need an environment map
+// to reflect — otherwise PBR materials look flat black. We use a tiny
+// contribution (0.08) so the IBL just defines silhouettes without
+// making the scene look like daylight.
 const pmrem = new THREE.PMREMGenerator(renderer);
 pmrem.compileEquirectangularShader();
 const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environment = envTex;
-scene.environmentIntensity = 0.6;  // subtle IBL — moonlight + key still drive the look
+scene.environmentIntensity = 0.08;
 pmrem.dispose();
 
 const camera = new THREE.PerspectiveCamera(
@@ -57,23 +68,18 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   200
 );
-camera.position.set(0, 1.65, 20);   // match camera path start (spawn)
+camera.position.set(0, 1.65, 20);
 
 // ── Systems ───────────────────────────────────────────────────────
-const world      = new World(scene);
-const camCtrl    = new CameraController(camera, canvas);
-const hotspots   = new HotspotSystem(scene, camera, renderer, canvas);
+// CameraController still works — the scroll path is just traveling
+// through empty space. We need it for the gate dismissal + feel.
+const world    = new World(scene);
+const camCtrl  = new CameraController(camera, canvas);
+// HotspotSystem: instantiate but pass empty hotspots for now
+const hotspots = new HotspotSystem(scene, camera, renderer, canvas);
 
-// Wire camCtrl into world so animated props (frog, etc.) can read camera state
 world.camCtrl = camCtrl;
-
-// Register hotspots from world
 hotspots.registerHotspots(world.getHotspots());
-
-// Show HUD progress after first interaction
-window.addEventListener('anura:worldEngaged', () => {
-  hudProgress.classList.add('visible');
-}, { once: true });
 
 // ── Resize ────────────────────────────────────────────────────────
 function onResize() {
@@ -93,38 +99,29 @@ function animate() {
   const dt = clock.getDelta();
   const elapsed = clock.elapsedTime;
 
-  world.update(elapsed);
+  world.update(elapsed, camCtrl.progress);
   camCtrl.update(dt);
   hotspots.update(dt);
 
-  // Per-Act visuals: bloom strength + tone-mapping exposure ramp
-  // with camera progress. This is what makes different Acts feel
-  // different — restrained at spawn, peak at sanctuary.
-  if (hotspots.syncVisualsToProgress) {
-    hotspots.syncVisualsToProgress(camCtrl.progress);
-  }
-
-  hotspots.render();   // composer (renders via RenderPass + Bloom + Outline + FXAA)
+  // No bloom, no post-process for now. Just the raw render.
+  // (Hotspots.render() will fall back to renderer.render if no composer.)
+  if (hotspots.render) hotspots.render();
 
   requestAnimationFrame(animate);
 }
 animate();
 
 // ── Gate dismissal ────────────────────────────────────────────────
-// Listen for the gate's own completion event, OR auto-dismiss after 4s fallback.
 function dismissGate() {
   if (!gate || gate.classList.contains('dismissed')) return;
   gate.classList.add('dismissed');
-  // Show scroll hint after a small breath
   setTimeout(() => scrollHint?.classList.add('visible'), 1200);
+  window.dispatchEvent(new CustomEvent('anura:worldEngaged'));
 }
 
 window.addEventListener('anura:gateComplete', dismissGate, { once: true });
-// Safety fallback — never trap the user behind the gate
 setTimeout(dismissGate, 6000);
 
-// Pause pointer events on the canvas while the gate is up so the
-// first click lands on "SCROLL TO DESCEND", not on a hotspot.
 function blockCanvasWhileGated() {
   if (gate && !gate.classList.contains('dismissed')) {
     canvas.style.pointerEvents = 'none';

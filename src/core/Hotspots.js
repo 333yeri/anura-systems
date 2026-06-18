@@ -31,16 +31,18 @@ const OUTLINE_THICKNESS     = 1.5;
 const HOVER_CURSOR_CLASS    = 'is-hovering-hotspot';
 
 // UnrealBloomPass — the cinematic dial. Strength is wired to camera
-// progress so different Acts have different bloom intensity:
-//   Act I  (spawn):     0.4  — restrained, distant
-//   Act II (descent):   0.7  — building
-//   Act III (mid):      1.0  — full glow
-//   Act IV (sanctuary): 1.4  — peak, campfire + mushroom halo
-// Active Theory does exactly this with their per-scene bloom variants.
-const BLOOM_STRENGTH_MIN    = 0.4;
-const BLOOM_STRENGTH_MAX    = 1.4;
-const BLOOM_RADIUS          = 0.85;
-const BLOOM_THRESHOLD       = 0.0;     // bloom everything brighter than pure black
+// progress so different Acts have different bloom intensity.
+// 2007-era night: bloom is restrained — only the fire glows,
+// and it glows HARD but not blinding. Threshold 0.4 = only bright
+// things bloom (fire sprites, lanterns), not every dim tree.
+//   Act I  (spawn):     0.15 — distant, almost nothing blooming
+//   Act II (descent):   0.30 — building
+//   Act III (mid):      0.45 — full glow on fire seen through trees
+//   Act IV (sanctuary): 0.55 — peak, campfire pool of light
+const BLOOM_STRENGTH_MIN    = 0.15;
+const BLOOM_STRENGTH_MAX    = 0.55;
+const BLOOM_RADIUS          = 0.6;
+const BLOOM_THRESHOLD       = 0.4;     // only bright things bloom
 
 const POINTER_EVENT_NAME  = 'anura:hotspotClick';
 
@@ -83,7 +85,11 @@ export class HotspotSystem {
     this._onKey         = this.onKey.bind(this);
     this._onResize      = this.onResize.bind(this);
 
-    this.initComposer();
+    // Composer/post-processing disabled for Pass 1.
+    // We re-enable bloom + outline in a later pass when there are
+    // emissive props to glow and clickable meshes to outline.
+    // this.initComposer();
+
     this.bindEvents();
   }
 
@@ -296,19 +302,18 @@ export class HotspotSystem {
   syncVisualsToProgress(progress) {
     this.setBloomFromProgress(progress);
 
-    // Tone-mapping exposure ramp — slightly brighter mid-journey so the
-    // user feels "you're opening up" at Act III, then dimmer again at
-    // sanctuary so the campfire reads as the brightest thing on screen.
+    // Tone-mapping exposure ramp — night scene stays dim throughout.
+    // Base 0.55 (very dark forest), rises to 0.75 at sanctuary so
+    // the campfire pool reads without washing out the surroundings.
     const t = Math.max(0, Math.min(1, progress));
     const eased = t * t * (3 - 2 * t); // same ease curve as bloom
-    // exposure rises 1.55 → 1.85 → settles 1.75 at the end
     let exposure;
     if (eased < 0.6) {
-      // First 60%: lerp 1.55 → 1.85
-      exposure = 1.55 + (eased / 0.6) * 0.30;
+      // spawn → mid: gentle rise 0.55 → 0.65
+      exposure = 0.55 + (eased / 0.6) * 0.10;
     } else {
-      // Last 40%: lerp 1.85 → 1.75
-      exposure = 1.85 - ((eased - 0.6) / 0.4) * 0.10;
+      // mid → sanctuary: 0.65 → 0.75 (still dim, but fire reads)
+      exposure = 0.65 + ((eased - 0.6) / 0.4) * 0.10;
     }
     if (this.renderer && this.renderer.toneMappingExposure !== undefined) {
       this.renderer.toneMappingExposure = exposure;
@@ -373,12 +378,11 @@ export class HotspotSystem {
   // renderer.render(scene, camera).
   // ------------------------------------------------------------------
 
+  // Render the scene. Pass 1 = no composer, no post-processing.
+  // (Bloom + outline + FXAA come back in later passes when there
+  // are things to bloom / outline.)
   render() {
-    if (this.composer) {
-      this.composer.render();
-    } else {
-      this.renderer.render(this.scene, this.camera);
-    }
+    this.renderer.render(this.scene, this.camera);
   }
 
   // ------------------------------------------------------------------
