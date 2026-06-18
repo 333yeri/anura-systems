@@ -378,13 +378,13 @@ Source: board page 1 (Visual Board, 5 pillars of mood) + page 2
 little unsure about the colors." Decision pending — needs to be seen
 rendered on the live site.
 
-### Typography candidates (board page 2, "Typography Trinity")
+### Typography candidates (board page 2, "Typography Trinity") ✅ LOCKED 2026-06-18
 
 - Headers: **PP Neue Montreal**
 - Kernel Text: **JetBrains Mono**
 - UI Accents: **Commit Mono**
 
-**Status:** awaiting user reaction.
+Decision: Yeray confirmed these three are good. Final.
 
 ### Mood references (board page 1)
 
