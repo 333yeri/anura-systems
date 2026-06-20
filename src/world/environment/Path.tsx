@@ -36,36 +36,53 @@ import { palette, hexToVec3 } from '../../shared/palette';
 // This is the LOCKED camera path per the user diagram.
 // Don't modify without explicit user approval.
 
+// =================================================================
+// PATH KEYFRAMES (12 keyframes matching the user diagram)
+// =================================================================
+// z = forward (negative = away from start)
+// x = left/right
+// y = ground level (0)
+// t = scroll position (0 = start, 1 = end)
+//
+// KEYFRAMES PER USER DIAGRAM (2026-06-20):
+//   - Spawn at frog position (0, 0)
+//   - First right turn into jungle
+//   - S-curve through dense jungle (NO preview of Act 4)
+//   - Sharp 90° RIGHT turn at end (not a U-turn — user wants a proper
+//     90° turn that REVEALS something on the other side)
+//   - Act 4 reveal after the 90° turn
+//
+// IMPORTANT: At end, camera must face into Act 4 — not loop back.
+
 export const PATH_KEYFRAMES: Array<{ pos: [number, number, number]; lookAt: [number, number, number]; t: number; label: string }> = [
   // Act 3 entry — open forest, clear sky
-  { t: 0.00, pos: [0, 1.6, 0],    lookAt: [1, 1.6, -3],   label: 'frog spawn / Act 3 start' },
-  { t: 0.05, pos: [1.0, 1.6, -3], lookAt: [2.5, 1.6, -7], label: 'enter jungle — first turn right' },
+  { t: 0.00, pos: [0, 1.6, 0],     lookAt: [1, 1.6, -3],   label: 'frog spawn / Act 3 start' },
+  { t: 0.05, pos: [1.0, 1.6, -3],  lookAt: [2.5, 1.6, -7], label: 'enter jungle — first turn right' },
 
   // First big bend through jungle (trees should be visible left/right here)
-  { t: 0.12, pos: [3, 1.6, -7],   lookAt: [5, 1.6, -12],  label: 'snake through dense 1' },
-  { t: 0.20, pos: [5, 1.6, -13],  lookAt: [2, 1.6, -18],  label: 'curve back-left' },
-  { t: 0.28, pos: [1, 1.6, -19],  lookAt: [-3, 1.6, -22], label: 'swing left' },
+  { t: 0.15, pos: [3, 1.6, -7],    lookAt: [5, 1.6, -12],  label: 'snake through dense 1' },
+  { t: 0.25, pos: [5, 1.6, -13],   lookAt: [2, 1.6, -18],  label: 'curve back-left' },
+  { t: 0.35, pos: [1, 1.6, -19],   lookAt: [-3, 1.6, -22], label: 'swing left' },
 
   // Dense jungle S-curve (no preview of what's coming)
-  { t: 0.36, pos: [-4, 1.6, -22], lookAt: [-7, 1.6, -27], label: 'dense jungle left' },
-  { t: 0.44, pos: [-8, 1.6, -28], lookAt: [-4, 1.6, -33], label: 'dense jungle S-curve' },
-  { t: 0.52, pos: [-2, 1.6, -34], lookAt: [2, 1.6, -38], label: 'dense jungle back-right' },
-  { t: 0.60, pos: [4, 1.6, -39],  lookAt: [7, 1.6, -42], label: 'dense jungle right' },
-  { t: 0.68, pos: [8, 1.6, -43],  lookAt: [5, 1.6, -48], label: 'dense jungle final' },
+  { t: 0.45, pos: [-4, 1.6, -22],  lookAt: [-7, 1.6, -27], label: 'dense jungle left' },
+  { t: 0.55, pos: [-8, 1.6, -28],  lookAt: [-4, 1.6, -33], label: 'dense jungle S-curve' },
+  { t: 0.62, pos: [-2, 1.6, -34],  lookAt: [2, 1.6, -38], label: 'dense jungle back-right' },
+  { t: 0.70, pos: [4, 1.6, -39],   lookAt: [7, 1.6, -42], label: 'dense jungle right' },
+  { t: 0.78, pos: [8, 1.6, -43],   lookAt: [10, 1.6, -48], label: 'dense jungle final' },
 
-  // Pre-U-turn approach — bend right then back left
-  { t: 0.76, pos: [3, 1.6, -49],  lookAt: [-2, 1.6, -53], label: 'sharp turn to left (back)' },
+  // Pre-turn approach — bend right to set up the 90°
+  { t: 0.85, pos: [10, 1.6, -49],  lookAt: [13, 1.6, -53], label: 'approaching the turn' },
 
-  // U-TURN — the camera turns 180° here, looking back at what was behind
-  { t: 0.84, pos: [-3, 1.6, -55], lookAt: [0, 1.6, -50], label: 'U-turn start — looking back' },
-  { t: 0.90, pos: [-2, 1.6, -52], lookAt: [2, 1.6, -50], label: 'U-turn mid — sweeping right' },
-  { t: 0.95, pos: [2, 1.6, -51],  lookAt: [6, 1.6, -52], label: 'U-turn end — facing forward+right' },
+  // 90° RIGHT TURN — the camera turns to face into Act 4
+  // Position rotates around a pivot point to make a clean corner.
+  // Before turn: facing -Z (forward). After turn: facing +X (right).
+  { t: 0.92, pos: [13, 1.6, -54], lookAt: [16, 1.6, -52], label: '90° turn start' },
+  { t: 0.96, pos: [16, 1.6, -52], lookAt: [18, 1.6, -48], label: '90° turn mid' },
+  { t: 0.99, pos: [18, 1.6, -48], lookAt: [18, 1.6, -42], label: '90° turn complete — Act 4 revealed' },
 
-  // Act 4 reveal — clearing appears around the corner (after U-turn)
-  { t: 0.98, pos: [5, 1.6, -52],  lookAt: [10, 1.6, -54], label: 'Act 4 reveal — fire visible' },
-
-  // Act 4 final — camera settled, looking at campfire + Yeri + moon
-  { t: 1.00, pos: [7, 1.6, -53],  lookAt: [11, 1.5, -56], label: 'Act 4 settled — fire + Yeri + moon' },
+  // Act 4 final — camera settled, looking down the path into the clearing
+  { t: 1.00, pos: [18, 1.6, -46], lookAt: [18, 1.4, -38], label: 'Act 4 settled — fire + Yeri + moon' },
 ];
 
 // Build the curve from keyframes

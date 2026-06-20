@@ -78,11 +78,13 @@ function buildForest(seed = 42): TreeInstance[] {
   };
 
   const zones: Zone[] = [
-    { sampleRange: [6, 16],   countPerSide: 4,  sideSpread: 4.0, isHero: false }, // entry (skips first 6 samples — clear view at spawn)
-    { sampleRange: [16, 28],  countPerSide: 6,  sideSpread: 3.0, isHero: false }, // transition
-    { sampleRange: [28, 55],  countPerSide: 10, sideSpread: 2.5, isHero: true  }, // dense rainforest
-    { sampleRange: [55, 68],  countPerSide: 6,  sideSpread: 3.5, isHero: false }, // opening up
-    { sampleRange: [68, 80],  countPerSide: 4,  sideSpread: 5.5, isHero: false }, // U-turn + clearing
+    // Entry zone: skip first 12 samples (spawn area) so trees never block the camera.
+    // Trees start where the path actually bends away from camera forward direction.
+    { sampleRange: [12, 22],  countPerSide: 4,  sideSpread: 4.5, isHero: false }, // entry
+    { sampleRange: [22, 35],  countPerSide: 6,  sideSpread: 3.2, isHero: false }, // transition
+    { sampleRange: [35, 60],  countPerSide: 10, sideSpread: 2.5, isHero: true  }, // dense rainforest
+    { sampleRange: [60, 72],  countPerSide: 6,  sideSpread: 3.5, isHero: false }, // opening up
+    { sampleRange: [72, 80],  countPerSide: 4,  sideSpread: 5.5, isHero: false }, // 90° turn + clearing
   ];
 
   for (const zone of zones) {
@@ -116,12 +118,13 @@ function buildForest(seed = 42): TreeInstance[] {
         const x = pathX + perpX * side * sideOffset;
         const z = pathZ + perpZ * side * sideOffset;
 
-        // Scale variation
+        // Scale variation — note: GLOBAL_SCALE = 0.025, so per-instance
+        // scale 1.0-1.8 gives tree height ~1.5-3m (realistic jungle size)
         let scale: number;
         if (zone.isHero) {
-          scale = 1.2 + rng() * 0.5;
+          scale = 1.4 + rng() * 0.4;  // 1.4-1.8x for hero (dense rainforest, larger trees)
         } else {
-          scale = 0.9 + rng() * 0.7;
+          scale = 0.9 + rng() * 0.7;  // 0.9-1.6x general
         }
 
         // Variant selection — weight hero variants (v01, v04) in hero zones
@@ -193,10 +196,11 @@ export default function Trees() {
 
   // Build deterministic forest layout
   // NOTE: tree GLBs are sized 20-60 units in their source files (per inspection).
-  // World scale is ~1 unit = 1 meter, so we apply GLOBAL_SCALE = 0.04 to make
-  // trees ~1-2.5m tall in-scene (realistic tree size).
+  // World scale is ~1 unit = 1 meter.
+  // GLOBAL_SCALE = 0.025 makes trees 0.5-1.5m tall in-scene — realistic understory size
+  // (smaller so they don't fill the frame when camera is close)
   const instances = useMemo(() => buildForest(42), []);
-  const GLOBAL_SCALE = 0.04;
+  const GLOBAL_SCALE = 0.025;
 
   // Cast shadows for hero trees only (perf optimization)
   useEffect(() => {

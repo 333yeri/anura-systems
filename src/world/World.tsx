@@ -160,7 +160,7 @@ function Moon() {
 
   return (
     <group position={moonPos}>
-      {/* Halo billboard (always faces camera) */}
+      {/* Halo billboard — cool silvery moonlight glow (NOT warm amber) */}
       <mesh ref={haloRef} renderOrder={1}>
         <planeGeometry args={[moonScale * 10, moonScale * 10]} />
         <shaderMaterial
@@ -169,7 +169,9 @@ function Moon() {
           blending={THREE.AdditiveBlending}
           toneMapped={false}
           uniforms={{
-            uColor: { value: new THREE.Color(...hexToVec3(palette.moonlight_halo)) },
+            // Cool silvery halo — pulled from the moonlight color itself
+            // (warm tones read as "green" when mixed with dark blue sky)
+            uColor: { value: new THREE.Color(0.85, 0.88, 0.95) }, // cool silvery
           }}
           vertexShader={/* glsl */ `
             varying vec2 vUv;
@@ -184,18 +186,18 @@ function Moon() {
             void main() {
               float d = distance(vUv, vec2(0.5));
               float halo = 1.0 - smoothstep(0.0, 0.5, d);
-              halo = pow(halo, 1.5);
-              gl_FragColor = vec4(uColor * 2.5, halo * 1.0);
+              halo = pow(halo, 2.0);
+              gl_FragColor = vec4(uColor * 1.5, halo * 0.9);
             }
           `}
         />
       </mesh>
 
-      {/* Moon body — emissive (use Basic + toneMapped=false for max brightness against dark sky) */}
+      {/* Moon body — pure white moon (NOT warm tinted) */}
       <mesh ref={moonRef} renderOrder={2}>
         <sphereGeometry args={[moonScale, 32, 32]} />
         <meshBasicMaterial
-          color={palette.moonlight}
+          color={0xfaf8f0} // very pale warm-white (almost neutral)
           toneMapped={false}
         />
       </mesh>
@@ -245,17 +247,18 @@ function Ground() {
         Math.sin(x * 0.2 + z * 0.15) * 0.05;
       pos.setY(i, h);
 
-      // Vertex color zones — patches of grass on mud
+      // Vertex color zones — mostly mud, sparse darker grass patches
+      // (per user feedback: ground was too bright green, looked fake)
       const grassNoise = Math.sin(x * 0.3) * Math.cos(z * 0.25) + Math.sin(x * 0.7 + z * 0.5) * 0.5;
-      const isWet = (x * x + z * z) > 900 && grassNoise < -0.3;  // far + low spots = wet
-      const isGrass = grassNoise > 0.4;
+      const isWet = (x * x + z * z) > 900 && grassNoise < -0.3;
+      const isGrass = grassNoise > 0.6; // Higher threshold = less grass
 
       let col;
       if (isWet) {
         col = mudWet;
       } else if (isGrass) {
         col = grassMid;
-      } else if (Math.random() > 0.7) {
+      } else if (Math.random() > 0.85) { // Much rarer dark grass
         col = grassDark;
       } else {
         col = mudColor;
@@ -275,7 +278,7 @@ function Ground() {
     <mesh geometry={geom} position={[0, -0.5, -10]} receiveShadow>
       <meshStandardMaterial
         vertexColors
-        roughness={0.92}
+        roughness={0.95}
         metalness={0.0}
       />
     </mesh>
