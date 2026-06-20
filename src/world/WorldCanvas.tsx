@@ -150,6 +150,10 @@ function DebugOverlay() {
  * ScrollDriver — uses WINDOW scroll position (driven by scroll wheel).
  * Body is 600vh tall so the user can scroll through the whole experience.
  * This is OUTSIDE Canvas (pure DOM).
+ *
+ * IMPORTANT: We MUST override overflow:hidden on html/body/#root
+ * (set by global.css and index.html) for scrolling to work. Otherwise
+ * the page is locked and wheel events do nothing.
  */
 function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number> }) {
   useEffect(() => {
@@ -157,6 +161,28 @@ function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number>
     document.body.style.minHeight = '600vh';
     document.body.style.margin = '0';
     document.body.style.background = '#000';
+
+    // Override overflow:hidden on html, body, and #root (forced by global CSS)
+    const root = document.getElementById('root');
+    const html = document.documentElement;
+
+    // Save original values to restore on unmount
+    const origHtmlOverflow = html.style.overflow;
+    const origBodyOverflow = document.body.style.overflow;
+    const origRootOverflow = root?.style.overflow || '';
+    const origBodyHeight = document.body.style.height;
+
+    // Force scrollable
+    html.style.overflow = 'auto';
+    html.style.height = 'auto';
+    html.style.overflowY = 'auto';
+    document.body.style.overflow = 'visible';
+    document.body.style.overflowY = 'visible';
+    document.body.style.height = 'auto';
+    if (root) {
+      root.style.overflow = 'visible';
+      root.style.height = 'auto';
+    }
 
     const handler = () => {
       // Map scrollY (0 to maxScroll) to scrollRef (0 to 1)
@@ -175,6 +201,18 @@ function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number>
     return () => {
       window.removeEventListener('scroll', handler);
       document.body.style.minHeight = '';
+      document.body.style.margin = '';
+      // Restore original overflow values
+      html.style.overflow = origHtmlOverflow;
+      html.style.height = '';
+      html.style.overflowY = '';
+      document.body.style.overflow = origBodyOverflow;
+      document.body.style.overflowY = '';
+      document.body.style.height = origBodyHeight;
+      if (root) {
+        root.style.overflow = origRootOverflow;
+        root.style.height = '';
+      }
     };
   }, [scrollRef]);
 
