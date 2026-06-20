@@ -114,10 +114,10 @@ function PathMesh() {
   const curve = useMemo(buildCurve, []);
 
   const geom = useMemo(() => {
-    // Create a flat strip mesh by extruding a rectangle along the curve
+    // Create a path-like strip mesh by extruding an organic shape along the curve.
+    // Width varies slightly along the path (narrower in dense jungle, wider in clearings).
     const tubularSegments = 200;
-    const widthSegments = 1;
-    const halfWidth = 0.7; // 1.4m wide path (single-person + slight extra)
+    const halfWidthBase = 0.5; // 1m wide path (single-person, NOT a road)
 
     // Sample points along curve
     const frames = curve.computeFrenetFrames(tubularSegments, false);
@@ -126,15 +126,22 @@ function PathMesh() {
     const colors: number[] = [];
     const indices: number[] = [];
 
-    const mudColor = new THREE.Color(...hexToVec3(palette.stone_base));
-    const mudWet = new THREE.Color(...hexToVec3('#15110D'));
-    const mudWorn = new THREE.Color(...hexToVec3(palette.stone_mid));
+    // Mud colors — darker than current, more variation, NO artificial bright green
+    const mudDark = new THREE.Color(...hexToVec3('#1A1612'));    // very dark wet mud
+    const mudMid = new THREE.Color(...hexToVec3('#2A2218'));    // medium mud
+    const mudWet = new THREE.Color(...hexToVec3('#0F0C08'));    // wet patches (very dark)
+    const mudWorn = new THREE.Color(...hexToVec3('#33291E'));    // worn/foot-worn mud (slightly lighter)
 
     for (let i = 0; i <= tubularSegments; i++) {
       const t = i / tubularSegments;
       const point = curve.getPointAt(t);
       const tangent = frames.tangents[i];
       const normal = frames.normals[i];
+
+      // Path width varies slightly along path (narrower in dense jungle)
+      // Use sine wave for organic variation
+      const widthMod = 1 + 0.15 * Math.sin(t * Math.PI * 8);
+      const halfWidth = halfWidthBase * widthMod;
 
       // Calculate left/right perpendicular to tangent (in horizontal plane)
       const right = new THREE.Vector3();
@@ -150,12 +157,17 @@ function PathMesh() {
       rightPos.y = 0;
       positions.push(rightPos.x, rightPos.y, rightPos.z);
 
-      // Color: alternating mud / wet / worn
-      // Worn in the center, wet at edges (foot traffic compacts center, edges stay wet)
-      const colLeft = i % 7 === 0 ? mudWet : mudColor;
-      const colRight = i % 7 === 0 ? mudWet : mudColor;
-      colors.push(colLeft.r, colLeft.g, colLeft.b);
-      colors.push(colRight.r, colRight.g, colRight.b);
+      // Color: muddy with variation, NO green
+      // Random pattern of mud colors — never green
+      const colRand = Math.sin(i * 12.9898) * 0.5 + 0.5; // deterministic noise
+      let col;
+      if (colRand < 0.3) col = mudDark;
+      else if (colRand < 0.6) col = mudMid;
+      else if (colRand < 0.75) col = mudWet;
+      else col = mudWorn;
+
+      colors.push(col.r, col.g, col.b);
+      colors.push(col.r, col.g, col.b);
 
       // Indices (skip first segment)
       if (i > 0) {
@@ -179,7 +191,7 @@ function PathMesh() {
     <mesh geometry={geom} receiveShadow position={[0, 0.02, 0]}>
       <meshStandardMaterial
         vertexColors
-        roughness={0.85}
+        roughness={0.95}
         metalness={0.0}
         side={THREE.DoubleSide}
       />

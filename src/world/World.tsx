@@ -224,17 +224,17 @@ function BillboardFollower({ targetRef }: { targetRef: React.RefObject<THREE.Mes
 
 function Ground() {
   const geom = useMemo(() => {
-    const g = new THREE.PlaneGeometry(200, 200, 128, 128);
+    const g = new THREE.PlaneGeometry(400, 400, 200, 200); // Larger, more subdivisions
     g.rotateX(-Math.PI / 2);
 
     // Slight displacement for unevenness (per VQS Decision: subtle rolling hills ±0.5m)
-    // Plus embedded grass patches via vertex colors
+    // Plus embedded mud patches via vertex colors
     const pos = g.attributes.position;
     const colors = new Float32Array(pos.count * 3);
-    const mudColor = new THREE.Color(...hexToVec3(palette.stone_base));
-    const mudWet = new THREE.Color(...hexToVec3('#15110D'));
-    const grassDark = new THREE.Color(...hexToVec3(palette.moss_shadow));
-    const grassMid = new THREE.Color(...hexToVec3(palette.moss_mid));
+    const mudDark = new THREE.Color(...hexToVec3('#1A1612'));
+    const mudMid = new THREE.Color(...hexToVec3('#2A2218'));
+    const mudWet = new THREE.Color(...hexToVec3('#0F0C08'));
+    const mudWorn = new THREE.Color(...hexToVec3('#33291E'));
 
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -247,21 +247,20 @@ function Ground() {
         Math.sin(x * 0.2 + z * 0.15) * 0.05;
       pos.setY(i, h);
 
-      // Vertex color zones — mostly mud, sparse darker grass patches
-      // (per user feedback: ground was too bright green, looked fake)
-      const grassNoise = Math.sin(x * 0.3) * Math.cos(z * 0.25) + Math.sin(x * 0.7 + z * 0.5) * 0.5;
-      const isWet = (x * x + z * z) > 900 && grassNoise < -0.3;
-      const isGrass = grassNoise > 0.6; // Higher threshold = less grass
+      // Vertex color zones — ALL MUD, no green
+      const noise = Math.sin(x * 0.3) * Math.cos(z * 0.25) + Math.sin(x * 0.7 + z * 0.5) * 0.5;
+      const isWet = noise < -0.3;
+      const isWorn = noise > 0.4;
 
       let col;
       if (isWet) {
         col = mudWet;
-      } else if (isGrass) {
-        col = grassMid;
-      } else if (Math.random() > 0.85) { // Much rarer dark grass
-        col = grassDark;
+      } else if (isWorn) {
+        col = mudWorn;
+      } else if (Math.random() > 0.7) {
+        col = mudDark;
       } else {
-        col = mudColor;
+        col = mudMid;
       }
 
       colors[i * 3] = col.r;
@@ -275,7 +274,7 @@ function Ground() {
   }, []);
 
   return (
-    <mesh geometry={geom} position={[0, -0.5, -10]} receiveShadow>
+    <mesh geometry={geom} position={[0, -0.5, -30]} receiveShadow>
       <meshStandardMaterial
         vertexColors
         roughness={0.95}
