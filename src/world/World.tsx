@@ -30,6 +30,7 @@ import { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { palette, hexToVec3 } from '../shared/palette';
+import Trees from './environment/Trees';
 
 // =================================================================
 // SKY DOME — procedural shader with stars + horizon gradient
@@ -423,11 +424,8 @@ export default function World() {
       {/* === GEOMETRY === */}
       <Ground />
 
-      {/* Hero trees — placeholder for milestone 1, real GLBs next */}
-      <HeroTreePlaceholder position={[-8, -0.5, -10]} scale={1.4} />
-      <HeroTreePlaceholder position={[10, -0.5, -15]} scale={1.1} />
-      <HeroTreePlaceholder position={[-3, -0.5, -25]} scale={1.6} />
-      <HeroTreePlaceholder position={[12, -0.5, -30]} scale={0.9} />
+      {/* === TREES (M2: real GLBs with variation system) === */}
+      <Trees />
     </>
   );
 }
