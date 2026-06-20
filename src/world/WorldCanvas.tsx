@@ -222,17 +222,14 @@ function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number>
 /**
  * MouseDriver — tracks mouse position and updates mouseParallax.
  *
- * FPS-STYLE CONTROLS: Mouse LEFT → camera turns LEFT → world
- * appears to move RIGHT (like turning your head left).
+ * 20% parallax bounds (±0.2 rad ≈ ±11.5 deg): mouse at FAR LEFT
+ * of screen → max 20% left turn. Camera DOES NOT rotate forever —
+ * ParallaxCamera only updates when mouse actually moves.
  *
- * Math (verified empirically via test):
- * - nx = -1 when mouse at far LEFT
- * - parallax.x = +0.05 makes camera turn LEFT (forward.x decreases)
- * - parallax.x = -0.05 makes camera turn RIGHT (forward.x increases)
- * - So mouseParallax.x = -nx * 0.05 (negate nx)
- *
- * Y axis (pitch):
- * - mouseParallax.y = -ny * 0.05: mouse up (ny=-1) → positive parallax → tilts up
+ * Math:
+ * - nx = -1 when mouse at far LEFT of screen
+ * - ParallaxCamera maps this to yaw of +0.2 rad (LEFT turn)
+ * - We feed raw nx (range -1 to +1), ParallaxCamera scales by 4 and clamps
  *
  * Pure DOM (outside Canvas).
  */
@@ -242,9 +239,10 @@ function MouseDriver() {
       // Normalize to [-1, 1]
       const nx = (e.clientX / window.innerWidth) * 2 - 1;
       const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      // Feed raw normalized mouse position; ParallaxCamera clamps to ±0.2
       // FPS-style: mouse-left → camera turns left
-      mouseParallax.x = -nx * 0.05;
-      mouseParallax.y = -ny * 0.05;
+      mouseParallax.x = -nx;
+      mouseParallax.y = -ny;
     };
     window.addEventListener('mousemove', handler, { passive: true });
     return () => window.removeEventListener('mousemove', handler);
@@ -253,35 +251,47 @@ function MouseDriver() {
 }
 
 /**
- * ParallaxCamera — applies 5% mouse-look offset RELATIVE to the
+ * ParallaxCamera — applies ±20% mouse-look offset RELATIVE to the
  * ScrollCamera's intended orientation.
  *
- * Bug fix: previous version used premultiply() every frame, which
- * accumulated drift (camera would keep rotating as long as mouse was
- * off-center). Now we just override the rotation each frame with:
- *   camera.quaternion = scrollCameraQuaternion * mouseOffset
+ * Bug fix: previous version kept rotating even when mouse was still,
+ * because it applied the rotation every frame regardless of mouse state.
+ * Now: only updates when mouse position has actually changed.
  *
- * Result: mouse-look is a FIXED offset from where the scroll camera
- * wants to look, not an accumulating rotation. 5% = subtle parallax.
+ * 20% means: mouse at far left → camera turns left by 20% of viewport
+ * width worth of rotation (~0.2 radians = ~11.5 degrees). User explicitly
+ * controls look direction, not auto-playing.
  *
  * Runs INSIDE Canvas (uses useFrame).
  */
 function ParallaxCamera() {
   const { camera } = useThree();
-  // Track the most recent scroll camera quaternion (set by ScrollCamera)
   const scrollQuat = useRef(new THREE.Quaternion());
 
-  useFrame(() => {
-    // The scroll camera just set the camera's quaternion. We capture it,
-    // then overwrite with: scrollRot * mouseOffset
-    // This means mouse-look is a FIXED offset on top of scroll camera.
+  // Track the last applied mouse position so we only update when the user
+  // actually moves the mouse (no continuous drift)
+  const lastMouseX = useRef<number>(999);
+  const lastMouseY = useRef<number>(999);
 
-    // Save current (which is the scroll camera's intended rotation)
+  useFrame(() => {
+    // Read current mouse parallax values
+    const mouseX = mouseParallax.x;
+    const mouseY = mouseParallax.y;
+
+    // Only update camera if mouse has actually moved (no drift while idle)
+    if (mouseX === lastMouseX.current && mouseY === lastMouseY.current) {
+      return;
+    }
+    lastMouseX.current = mouseX;
+    lastMouseY.current = mouseY;
+
+    // Save scroll camera's intended rotation
     scrollQuat.current.copy(camera.quaternion);
 
-    // Compute mouse offset
-    const yawAngle = mouseParallax.x;
-    const pitchAngle = mouseParallax.y;
+    // 20% parallax (±0.2 rad ≈ ±11.5 degrees, bounded)
+    const yawAngle = THREE.MathUtils.clamp(mouseX * 4, -0.2, 0.2);
+    const pitchAngle = THREE.MathUtils.clamp(mouseY * 4, -0.2, 0.2);
+
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
       yawAngle
@@ -291,8 +301,6 @@ function ParallaxCamera() {
       pitchAngle
     );
 
-    // Apply: scrollRot * yaw * pitch (yaw first, then pitch in local frame)
-    // This gives mouse-look in the SCROLL CAMERA'S local frame, not world frame
     const final = scrollQuat.current.clone().multiply(yawQuat).multiply(pitchQuat);
     camera.quaternion.copy(final);
   });

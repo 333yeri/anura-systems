@@ -170,8 +170,81 @@ function buildForest(seed = 42): TreeInstance[] {
   return trees;
 }
 
+// =================================================================
+// BACKGROUND FOREST — trees scattered everywhere, not just along path
+// =================================================================
+// User feedback: 'trees are only near the track but should be everywhere'
+// Solution: scatter ~250 trees across a 120m × 80m area covering the
+// entire path region. Vary scale (some smaller understory trees).
+// Skip a 3m wide corridor centered on the path so background trees
+// don't visually clash with the path-side trees.
+
+function buildBackgroundForest(seed = 43): TreeInstance[] {
+  const rng = mulberry32(seed);
+  const trees: TreeInstance[] = [];
+
+  // Area to cover: x in [-30, 30], z in [-90, 5]
+  // This covers the entire path length + extends beyond to fill the background
+  const X_MIN = -30;
+  const X_MAX = 30;
+  const Z_MIN = -90;
+  const Z_MAX = 5;
+  const TOTAL = 300; // Scattered background trees
+
+  // Sample the path curve at coarse intervals to get path positions
+  const pathPoints = samplePathPoints(40);
+  // Convert path points to a flat array of (x, z) for distance checks
+  const pathFlat = pathPoints.map(([x, z]) => [x, z]);
+
+  for (let i = 0; i < TOTAL; i++) {
+    // Random position in the world area
+    const x = X_MIN + rng() * (X_MAX - X_MIN);
+    const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
+
+    // Check if too close to path (within 3m)
+    let tooClose = false;
+    for (const [px, pz] of pathFlat) {
+      const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
+      if (dist < 3.5) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (tooClose) continue;
+
+    // Check if too close to spawn (within 16m of (0, 0, 5))
+    const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
+    if (distToSpawn < 18) continue;
+
+    // Random scale (mostly smaller understory trees, some canopy)
+    let scale: number;
+    const scaleRoll = rng();
+    if (scaleRoll < 0.3) {
+      scale = 0.5 + rng() * 0.4; // 0.5-0.9x (small understory)
+    } else if (scaleRoll < 0.85) {
+      scale = 0.9 + rng() * 0.5; // 0.9-1.4x (medium)
+    } else {
+      scale = 1.4 + rng() * 0.4; // 1.4-1.8x (large canopy)
+    }
+
+    // Variant
+    const variant = Math.floor(rng() * 5);
+
+    trees.push({
+      variant,
+      position: [x, -0.5, z],
+      scale,
+      rotationY: rng() * Math.PI * 2,
+      hueShift: (rng() - 0.5) * 0.1,
+      isHero: false,
+    });
+  }
+
+  return trees;
+}
+
 /**
- * Single tree group — clones a loaded GLB scene, applies per-instance
+ * Single tree instance — clones a loaded GLB scene, applies per-instance
  * transforms and material variation.
  */
 function TreeInstance({ inst, treeScenes }: { inst: TreeInstance; treeScenes: THREE.Group[] }) {
@@ -228,6 +301,7 @@ export default function Trees() {
   // World scale: 1 unit = 1 meter. Per-instance scale is pre-multiplied
   // by GLOBAL_SCALE so trees are realistic jungle size.
   const instances = useMemo(() => buildForest(42), []);
+  const backgroundInstances = useMemo(() => buildBackgroundForest(43), []);
 
   // Cast shadows for hero trees only (perf optimization)
   useEffect(() => {
@@ -244,7 +318,10 @@ export default function Trees() {
   return (
     <>
       {instances.map((inst, i) => (
-        <TreeInstance key={i} inst={inst} treeScenes={treeScenes} />
+        <TreeInstance key={`path-${i}`} inst={inst} treeScenes={treeScenes} />
+      ))}
+      {backgroundInstances.map((inst, i) => (
+        <TreeInstance key={`bg-${i}`} inst={inst} treeScenes={treeScenes} />
       ))}
     </>
   );
