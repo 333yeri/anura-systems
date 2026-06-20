@@ -220,27 +220,36 @@ function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number>
 }
 
 /**
- * MouseDriver — tracks mouse position and updates mouseParallax.
+ * MouseDriver — tracks mouse position and feeds normalized offsets to
+ * ParallaxCamera.
  *
- * 20% parallax bounds (±0.2 rad ≈ ±11.5 deg): mouse at FAR LEFT
- * of screen → max 20% left turn. Camera DOES NOT rotate forever —
- * ParallaxCamera only updates when mouse actually moves.
+ * VIDEO-GAME SENSITIVITY (audit-driven):
+ *   Mouse at edge of viewport → camera rotates by 20% of viewport worth
+ *   of yaw (0.2 rad ≈ 11.5°). Linear response across the entire
+ *   viewport — no clamp ceiling at small movements.
  *
- * Math:
- * - nx = -1 when mouse at far LEFT of screen
- * - ParallaxCamera maps this to yaw of +0.2 rad (LEFT turn)
- * - We feed raw nx (range -1 to +1), ParallaxCamera scales by 4 and clamps
+ *   Math:
+ *   - Mouse edge → nx = ±1 → parallax.x = ∓1
+ *   - ParallaxCamera: yawAngle = parallax.x * 0.2 (linear, no clamp needed
+ *     since |parallax.x| ≤ 1)
+ *   - Result: 100px from center (≈8% of 1280px viewport) → 8% of 20%
+ *     rotation ≈ 0.92° (NOT the full 11.5° from previous broken code)
+ *
+ *   Compare to FPS games:
+ *   - This implementation: ~0.018°/px (subtle, "comfortable" sensitivity)
+ *   - Low FPS sens:        ~0.1°/px
+ *   - High FPS sens:       ~0.5°/px
  *
  * Pure DOM (outside Canvas).
  */
 function MouseDriver() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      // Normalize to [-1, 1]
+      // Normalize to [-1, +1]
       const nx = (e.clientX / window.innerWidth) * 2 - 1;
       const ny = (e.clientY / window.innerHeight) * 2 - 1;
-      // Feed raw normalized mouse position; ParallaxCamera clamps to ±0.2
       // FPS-style: mouse-left → camera turns left
+      // Feed raw normalized position; ParallaxCamera scales by ±0.2 rad
       mouseParallax.x = -nx;
       mouseParallax.y = -ny;
     };
@@ -251,16 +260,22 @@ function MouseDriver() {
 }
 
 /**
- * ParallaxCamera — applies ±20% mouse-look offset RELATIVE to the
+ * ParallaxCamera — applies 20% mouse-look offset RELATIVE to the
  * ScrollCamera's intended orientation.
  *
- * Bug fix: previous version kept rotating even when mouse was still,
- * because it applied the rotation every frame regardless of mouse state.
- * Now: only updates when mouse position has actually changed.
+ * Bug fix from audit: previous version scaled parallax by 4 then clamped
+ * to ±0.2 rad. Result: any mouse movement past 5% of viewport hit the
+ * clamp ceiling, making the whole screen feel "super sensitive" because
+ * the first 100px of mouse movement gave the same result as moving to
+ * the edge.
  *
- * 20% means: mouse at far left → camera turns left by 20% of viewport
- * width worth of rotation (~0.2 radians = ~11.5 degrees). User explicitly
- * controls look direction, not auto-playing.
+ * Fix: linear scaling. Mouse at edge → ±0.2 rad (~±11.5°). Mouse at
+ * 50% from center → ±0.1 rad. Subtle, video-game-like response across
+ * the entire viewport.
+ *
+ * Sensitivity: ~0.018°/px at 1280px viewport. Comparable to a LOW
+ * sensitivity FPS game setting. Comfortable for cinematic 3D
+ * experiences (not a twitch shooter).
  *
  * Runs INSIDE Canvas (uses useFrame).
  */
@@ -268,10 +283,13 @@ function ParallaxCamera() {
   const { camera } = useThree();
   const scrollQuat = useRef(new THREE.Quaternion());
 
-  // Track the last applied mouse position so we only update when the user
-  // actually moves the mouse (no continuous drift)
+  // Track last mouse position so we only update on actual mouse movement
+  // (no drift while idle)
   const lastMouseX = useRef<number>(999);
   const lastMouseY = useRef<number>(999);
+
+  // Max yaw/pitch in radians (20% of viewport)
+  const MAX_OFFSET = 0.2;
 
   useFrame(() => {
     // Read current mouse parallax values
@@ -288,9 +306,11 @@ function ParallaxCamera() {
     // Save scroll camera's intended rotation
     scrollQuat.current.copy(camera.quaternion);
 
-    // 20% parallax (±0.2 rad ≈ ±11.5 degrees, bounded)
-    const yawAngle = THREE.MathUtils.clamp(mouseX * 4, -0.2, 0.2);
-    const pitchAngle = THREE.MathUtils.clamp(mouseY * 4, -0.2, 0.2);
+    // Linear scaling — mouse at edge → MAX_OFFSET rad.
+    // Since parallax is already normalized [-1, +1], multiplying by MAX_OFFSET
+    // gives the correct range with no clamp needed.
+    const yawAngle = mouseX * MAX_OFFSET;
+    const pitchAngle = mouseY * MAX_OFFSET;
 
     const yawQuat = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(0, 1, 0),
