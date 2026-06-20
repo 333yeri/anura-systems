@@ -58,36 +58,47 @@ function buildForest(seed = 42): TreeInstance[] {
   const rng = mulberry32(seed);
   const trees: TreeInstance[] = [];
 
-  // Forest zones (z ranges, matching the locked forest progression):
-  //   entry (open):      z = -2 to -10, spacing 4-6m, total ~6 trees (close to camera)
-  //   transition:        z = -10 to -20, spacing 4-6m, total ~6 trees
-  //   dense rainforest:  z = -20 to -50, spacing 2-3m, total ~14 trees (hero)
-  //   opening up:        z = -50 to -80, spacing 4-6m, total ~8 trees
-  //   clearing:          z = -80 to -110, spacing 8-12m, total ~5 trees (framing)
-  // Trees frame the path (centered ~2m wide corridor kept clear).
+  type Zone = { zMin: number; zMax: number; count: number; isHero: boolean; sideSpread: number };
 
-  type Zone = { zMin: number; zMax: number; count: number; isHero: boolean; xSpread: number };
+  // Curved path keyframes (must match Path.tsx PATH_KEYFRAMES for curve points)
+  // Each row: [z, x] — used to place trees ALONG the path, offset to the sides
+  const pathPoints: Array<[number, number]> = [
+    [0, 0], [-3, 1.2], [-8, 2.5], [-14, 3], [-22, -1],
+    [-28, -5], [-34, 0], [-40, 4], [-46, 6], [-52, 9],
+    [-55, 12], [-57, 13], [-60, 14],
+  ];
+
   const zones: Zone[] = [
-    { zMin: -2,   zMax: -10,  count: 6,  isHero: false, xSpread: 8  },  // entry
-    { zMin: -10,  zMax: -20,  count: 6,  isHero: false, xSpread: 9  },  // transition
-    { zMin: -20,  zMax: -50,  count: 14, isHero: true,  xSpread: 8  },  // dense rainforest
-    { zMin: -50,  zMax: -80,  count: 8,  isHero: false, xSpread: 9  },  // opening up
-    { zMin: -80,  zMax: -110, count: 5,  isHero: false, xSpread: 11 },  // clearing frames
+    { zMin: -2,   zMax: -10,  count: 8,  isHero: false, sideSpread: 4 },  // entry
+    { zMin: -10,  zMax: -22,  count: 10, isHero: false, sideSpread: 3.5 }, // transition
+    { zMin: -22,  zMax: -46,  count: 24, isHero: true,  sideSpread: 2.8 }, // dense rainforest
+    { zMin: -46,  zMax: -54,  count: 8,  isHero: false, sideSpread: 4 },  // opening up
+    { zMin: -54,  zMax: -60,  count: 6,  isHero: false, sideSpread: 5 },  // clearing frames
   ];
 
   for (const zone of zones) {
     for (let i = 0; i < zone.count; i++) {
-      // Evenly distribute z within zone, with jitter
-      const zBase = zone.zMin + (i / Math.max(zone.count - 1, 1)) * (zone.zMax - zone.zMin);
-      const z = zBase + (rng() - 0.5) * 2.5; // ±1.25m z jitter
+      // Pick a z within the zone
+      const z = zone.zMin + (i / Math.max(zone.count - 1, 1)) * (zone.zMax - zone.zMin);
+      const zJitter = z + (rng() - 0.5) * 1.5;
+      const finalZ = Math.max(zone.zMin, Math.min(zone.zMax, zJitter));
 
-      // Skip a 2.2m-wide corridor down center (where the path will be)
-      let x: number;
-      let attempts = 0;
-      do {
-        x = (rng() - 0.5) * 2 * zone.xSpread;
-        attempts++;
-      } while (Math.abs(x) < 2.2 && attempts < 6);
+      // Estimate path x at this z (linear interpolation between keyframes)
+      let pathX = 0;
+      for (let p = 0; p < pathPoints.length - 1; p++) {
+        const [z1, x1] = pathPoints[p];
+        const [z2, x2] = pathPoints[p + 1];
+        if (finalZ >= Math.min(z1, z2) && finalZ <= Math.max(z1, z2)) {
+          const t = (finalZ - z1) / (z2 - z1 || 1);
+          pathX = x1 + (x2 - x1) * t;
+          break;
+        }
+      }
+
+      // Place trees to LEFT and RIGHT of path (alternate sides)
+      const side = i % 2 === 0 ? -1 : 1;
+      const sideOffset = zone.sideSpread + rng() * 1.5;
+      const x = pathX + side * sideOffset;
 
       // Scale variation
       let scale: number;
@@ -97,7 +108,7 @@ function buildForest(seed = 42): TreeInstance[] {
         scale = 0.9 + rng() * 0.7;  // 0.9-1.6x general
       }
 
-      // Variant selection — weight hero variants (v01, v04) in hero zones
+      // Variant selection
       let variant: number;
       if (zone.isHero) {
         const r = rng();
@@ -108,7 +119,7 @@ function buildForest(seed = 42): TreeInstance[] {
 
       trees.push({
         variant,
-        position: [x, -0.5, z],
+        position: [x, -0.5, finalZ],
         scale,
         rotationY: rng() * Math.PI * 2,
         hueShift: (rng() - 0.5) * 0.1,
