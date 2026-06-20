@@ -2,11 +2,14 @@
  * WorldCanvas — single Canvas that hosts the World + Path + ScrollCamera.
  * Debug overlay is OUTSIDE the canvas, polls the THREE scene via ref.
  *
- * Test scroll positions via URL: ?view=world&scroll=0.5
- * Keyboard: Q/E = ±5%, A/D = ±0.5%, 0 = start, 1 = Act 4 settled.
+ * CONTROLS:
+ *   - SCROLL WHEEL: drives scrollRef (0-1) along the path
+ *   - MOUSE MOVE: 5% parallax offset on look direction (subtle, not full control)
+ *   - Page must be tall enough to scroll — we set body height to 600vh so users
+ *     can scroll the entire path with the wheel.
  */
 
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import World from './World';
@@ -34,10 +37,15 @@ export function getDebugState() {
   return debugState;
 }
 
+// Mouse parallax offset (5% of viewport) — exposed globally so ScrollCamera can read it
+const mouseParallax = { x: 0, y: 0 };
+export function getMouseParallax() {
+  return mouseParallax;
+}
+
 /**
  * R3F component that updates debugState on a slow interval.
  * Runs INSIDE Canvas so it has access to camera + scene.
- * Also exposes tree positions to window for browser console inspection.
  */
 function DebugStateUpdater() {
   const { camera, scene } = useThree();
@@ -76,7 +84,6 @@ function DebugStateUpdater() {
       debugState.visibleTrees = visible;
       debugState.treePositions = positions;
 
-      // Expose to window for Playwright inspection
       if (typeof window !== 'undefined') {
         (window as any).__anuraState = {
           camPos: { ...debugState.camPos },
@@ -84,7 +91,7 @@ function DebugStateUpdater() {
           nearestTree: debugState.nearestTree,
           visibleTrees: debugState.visibleTrees,
           treeCount: positions.length,
-          treePositions: positions.slice(0, 30), // limit for debugging
+          treePositions: positions.slice(0, 30),
         };
       }
     }, 200);
@@ -97,7 +104,6 @@ function DebugStateUpdater() {
 
 /**
  * DOM overlay that polls debugState and displays.
- * OUTSIDE Canvas so it renders in regular React tree.
  */
 function DebugOverlay() {
   const [, force] = useState(0);
@@ -140,20 +146,87 @@ function DebugOverlay() {
   );
 }
 
+/**
+ * ScrollDriver — uses WINDOW scroll position (driven by scroll wheel).
+ * Body is 600vh tall so the user can scroll through the whole experience.
+ * This is OUTSIDE Canvas (pure DOM).
+ */
+function ScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number> }) {
+  useEffect(() => {
+    // Make body scrollable (600vh = 6 viewport heights of scrollable distance)
+    document.body.style.minHeight = '600vh';
+    document.body.style.margin = '0';
+    document.body.style.background = '#000';
+
+    const handler = () => {
+      // Map scrollY (0 to maxScroll) to scrollRef (0 to 1)
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const t = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+      scrollRef.current = THREE.MathUtils.clamp(t, 0, 1);
+
+      // Update status indicator
+      const status = document.querySelector('[data-scroll-status]');
+      if (status) status.textContent = `SCROLL: ${(scrollRef.current * 100).toFixed(0)}% — scroll to explore`;
+    };
+
+    window.addEventListener('scroll', handler, { passive: true });
+    handler(); // Initial sync
+
+    return () => {
+      window.removeEventListener('scroll', handler);
+      document.body.style.minHeight = '';
+    };
+  }, [scrollRef]);
+
+  return null;
+}
+
+/**
+ * MouseDriver — tracks mouse position and updates mouseParallax (5% offset).
+ * Pure DOM (outside Canvas).
+ */
+function MouseDriver() {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      // Normalize to [-1, 1]
+      const nx = (e.clientX / window.innerWidth) * 2 - 1;
+      const ny = (e.clientY / window.innerHeight) * 2 - 1;
+      // 5% parallax — multiply by 0.05 for very subtle effect
+      mouseParallax.x = nx * 0.05;
+      mouseParallax.y = -ny * 0.05; // invert Y (screen Y is down)
+    };
+    window.addEventListener('mousemove', handler, { passive: true });
+    return () => window.removeEventListener('mousemove', handler);
+  }, []);
+  return null;
+}
+
+/**
+ * ParallaxCamera — modifies ScrollCamera's lookAt to add 5% mouse parallax.
+ * Runs INSIDE Canvas (uses useFrame).
+ */
+function ParallaxCamera() {
+  const { camera } = useThree();
+
+  useFrame(() => {
+    // Get current lookAt direction (from camera forward)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    // Apply small parallax offset to camera orientation
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    const up = new THREE.Vector3(0, 1, 0);
+
+    // Rotate camera by parallax amount (yaw + pitch)
+    const yaw = new THREE.Quaternion().setFromAxisAngle(up, mouseParallax.x);
+    const pitch = new THREE.Quaternion().setFromAxisAngle(right, mouseParallax.y);
+    const combined = yaw.multiply(pitch);
+    camera.quaternion.premultiply(combined);
+  });
+
+  return null;
+}
+
 export default function WorldCanvas() {
   const scrollRef = useRef<number>(getScrollFromURL());
-
-  useEffect(() => {
-    const handler = () => {
-      scrollRef.current = getScrollFromURL();
-    };
-    window.addEventListener('popstate', handler);
-    const interval = setInterval(handler, 500);
-    return () => {
-      window.removeEventListener('popstate', handler);
-      clearInterval(interval);
-    };
-  }, []);
 
   return (
     <div
@@ -177,6 +250,7 @@ export default function WorldCanvas() {
         <World />
         <Path />
         <ScrollCamera scrollRef={scrollRef} />
+        <ParallaxCamera />
         <DebugStateUpdater />
       </Canvas>
 
@@ -194,7 +268,7 @@ export default function WorldCanvas() {
           zIndex: 100,
         }}
       >
-        [WORLD v0.5] — SKY · MOON · GROUND · FOG · TREES · PATH · CAMERA
+        [WORLD v0.6] — SCROLL · MOUSE-LOOK
       </div>
 
       {/* Top-right scroll indicator */}
@@ -212,45 +286,15 @@ export default function WorldCanvas() {
           zIndex: 100,
         }}
       >
-        SCROLL: {(scrollRef.current * 100).toFixed(0)}%
+        SCROLL: {(scrollRef.current * 100).toFixed(0)}% — scroll to explore
       </div>
 
-      {/* Debug overlay (outside Canvas) */}
+      {/* Debug overlay */}
       <DebugOverlay />
 
-      <KeyboardScrollDriver scrollRef={scrollRef} />
+      {/* Drivers — outside Canvas, pure DOM */}
+      <ScrollDriver scrollRef={scrollRef} />
+      <MouseDriver />
     </div>
   );
-}
-
-/**
- * KeyboardScrollDriver — Q/E for ±5%, A/D for ±0.5%, 0 = start, 1 = end.
- */
-function KeyboardScrollDriver({ scrollRef }: { scrollRef: React.MutableRefObject<number> }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'q' || e.key === 'Q') {
-        scrollRef.current = THREE.MathUtils.clamp(scrollRef.current - 0.05, 0, 1);
-      } else if (e.key === 'e' || e.key === 'E') {
-        scrollRef.current = THREE.MathUtils.clamp(scrollRef.current + 0.05, 0, 1);
-      } else if (e.key === 'a' || e.key === 'A') {
-        scrollRef.current = THREE.MathUtils.clamp(scrollRef.current - 0.005, 0, 1);
-      } else if (e.key === 'd' || e.key === 'D') {
-        scrollRef.current = THREE.MathUtils.clamp(scrollRef.current + 0.005, 0, 1);
-      } else if (e.key === '0') {
-        scrollRef.current = 0;
-      } else if (e.key === '1') {
-        scrollRef.current = 1;
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.set('scroll', scrollRef.current.toFixed(3));
-      window.history.replaceState({}, '', url.toString());
-
-      const status = document.querySelector('[data-scroll-status]');
-      if (status) status.textContent = `SCROLL: ${(scrollRef.current * 100).toFixed(0)}%`;
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [scrollRef]);
-  return null;
 }

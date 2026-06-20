@@ -54,35 +54,51 @@ import { palette, hexToVec3 } from '../../shared/palette';
 //
 // IMPORTANT: At end, camera must face into Act 4 — not loop back.
 
+// =================================================================
+// PATH KEYFRAMES (15 keyframes matching the user diagram - snake path)
+// =================================================================
+// z = forward (negative = away from start)
+// x = left/right
+// y = ground level (0)
+// t = scroll position (0 = start, 1 = end)
+//
+// Path geometry: Spawn → curve right → curve left → curve right →
+// curve left → 90° RIGHT TURN → Act 4 reveal. The snake has CLEAR
+// direction changes (3 visible bends) so the camera path actually
+// looks like a snake, not a zigzag.
+//
+// CRITICAL: At end, camera must face into Act 4 — not loop back.
+// The 90° turn reveals Act 4 (was hidden by dense jungle).
+
 export const PATH_KEYFRAMES: Array<{ pos: [number, number, number]; lookAt: [number, number, number]; t: number; label: string }> = [
   // Act 3 entry — open forest, clear sky
   { t: 0.00, pos: [0, 1.6, 5],     lookAt: [1, 1.6, 2],   label: 'frog spawn / Act 3 start' }, // Camera starts 5m BEHIND spawn point
-  { t: 0.05, pos: [1.0, 1.6, 2],   lookAt: [2.5, 1.6, -2], label: 'enter jungle — first turn right' },
+  { t: 0.06, pos: [1.0, 1.6, 2],   lookAt: [2.5, 1.6, -2], label: 'enter jungle — first turn right' },
 
-  // First big bend through jungle (trees should be visible left/right here)
-  { t: 0.15, pos: [3, 1.6, -2],    lookAt: [5, 1.6, -7], label: 'snake through dense 1' },
-  { t: 0.25, pos: [5, 1.6, -8],    lookAt: [2, 1.6, -13], label: 'curve back-left' },
-  { t: 0.35, pos: [1, 1.6, -14],   lookAt: [-3, 1.6, -17], label: 'swing left' },
+  // Snake bend 1: curve RIGHT then back LEFT (clear S)
+  { t: 0.18, pos: [3, 1.6, -2],    lookAt: [6, 1.6, -6], label: 'snake right 1' },
+  { t: 0.30, pos: [5, 1.6, -7],    lookAt: [3, 1.6, -13], label: 'snake back-left 1' },
 
-  // Dense jungle S-curve (no preview of what's coming)
-  { t: 0.45, pos: [-4, 1.6, -17],  lookAt: [-7, 1.6, -22], label: 'dense jungle left' },
-  { t: 0.55, pos: [-8, 1.6, -23],  lookAt: [-4, 1.6, -28], label: 'dense jungle S-curve' },
-  { t: 0.62, pos: [-2, 1.6, -29],  lookAt: [2, 1.6, -33], label: 'dense jungle back-right' },
-  { t: 0.70, pos: [4, 1.6, -34],   lookAt: [7, 1.6, -37], label: 'dense jungle right' },
-  { t: 0.78, pos: [8, 1.6, -38],   lookAt: [10, 1.6, -43], label: 'dense jungle final' },
+  // Snake bend 2: curve LEFT then back RIGHT
+  { t: 0.42, pos: [-1, 1.6, -14],  lookAt: [-5, 1.6, -18], label: 'snake left 2' },
+  { t: 0.54, pos: [-6, 1.6, -19],  lookAt: [-2, 1.6, -25], label: 'snake back-right 2' },
 
-  // Pre-turn approach — bend right to set up the 90°
-  { t: 0.85, pos: [10, 1.6, -44],  lookAt: [13, 1.6, -48], label: 'approaching the turn' },
+  // Snake bend 3: curve RIGHT then back LEFT
+  { t: 0.66, pos: [4, 1.6, -26],   lookAt: [8, 1.6, -30], label: 'snake right 3' },
+  { t: 0.78, pos: [6, 1.6, -32],   lookAt: [3, 1.6, -36], label: 'snake back-left 3' },
+
+  // Pre-turn approach — straighten path to set up the 90°
+  { t: 0.85, pos: [0, 1.6, -38],   lookAt: [4, 1.6, -42], label: 'approaching the turn' },
 
   // 90° RIGHT TURN — the camera turns to face into Act 4
   // Position rotates around a pivot point to make a clean corner.
   // Before turn: facing -Z (forward). After turn: facing +X (right).
-  { t: 0.92, pos: [13, 1.6, -49], lookAt: [16, 1.6, -47], label: '90° turn start' },
-  { t: 0.96, pos: [16, 1.6, -47], lookAt: [18, 1.6, -43], label: '90° turn mid' },
-  { t: 0.99, pos: [18, 1.6, -43], lookAt: [18, 1.6, -37], label: '90° turn complete — Act 4 revealed' },
+  { t: 0.92, pos: [6, 1.6, -44],   lookAt: [10, 1.6, -42], label: '90° turn start' },
+  { t: 0.96, pos: [10, 1.6, -42],  lookAt: [14, 1.6, -38], label: '90° turn mid' },
+  { t: 0.99, pos: [14, 1.6, -38],  lookAt: [16, 1.6, -32], label: '90° turn complete — Act 4 revealed' },
 
   // Act 4 final — camera settled, looking down the path into the clearing
-  { t: 1.00, pos: [18, 1.6, -41], lookAt: [18, 1.4, -33], label: 'Act 4 settled — fire + Yeri + moon' },
+  { t: 1.00, pos: [14, 1.6, -36],  lookAt: [14, 1.4, -28], label: 'Act 4 settled — fire + Yeri + moon' },
 ];
 // Build the curve from keyframes
 function buildCurve(): THREE.CatmullRomCurve3 {

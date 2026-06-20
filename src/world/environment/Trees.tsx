@@ -80,18 +80,19 @@ function buildForest(seed = 42): TreeInstance[] {
   const zones: Zone[] = [
     // Entry zone: skip first 12 samples (spawn area) so trees never block the camera.
     // Trees start where the path actually bends away from camera forward direction.
-    { sampleRange: [12, 22],  countPerSide: 3,  sideSpread: 5.0, isHero: false }, // entry (Fewer trees, further out)
-    { sampleRange: [22, 35],  countPerSide: 5,  sideSpread: 4.0, isHero: false }, // transition
-    { sampleRange: [35, 60],  countPerSide: 8,  sideSpread: 3.0, isHero: true  }, // dense rainforest (still dense, but not wall-like)
-    { sampleRange: [60, 72],  countPerSide: 5,  sideSpread: 4.5, isHero: false }, // opening up
-    { sampleRange: [72, 80],  countPerSide: 3,  sideSpread: 6.0, isHero: false }, // 90° turn + clearing (sparse framing)
+    { sampleRange: [12, 22],  countPerSide: 3,  sideSpread: 6.0, isHero: false }, // entry (further out for larger trees)
+    { sampleRange: [22, 35],  countPerSide: 5,  sideSpread: 4.5, isHero: false }, // transition
+    { sampleRange: [35, 60],  countPerSide: 8,  sideSpread: 3.5, isHero: true  }, // dense rainforest
+    { sampleRange: [60, 72],  countPerSide: 5,  sideSpread: 5.0, isHero: false }, // opening up
+    { sampleRange: [72, 80],  countPerSide: 4,  sideSpread: 6.5, isHero: false }, // 90° turn + clearing (sparse framing)
   ];
 
   // CAMERA SPAWN POSITION — must match ScrollCamera initial pos + World.tsx camera
   // Spawn camera starts at (0, 1.6, 5) per Path.tsx. We block trees
   // within SAFE_RADIUS of this point so they never block the spawn view.
+  // Larger radius accounts for tree canopy width (~3-5m) extending past origin.
   const CAMERA_SPAWN = { x: 0, y: 0, z: 5 };
-  const SAFE_RADIUS = 12; // meters
+  const SAFE_RADIUS = 16; // meters (was 12 — increased for larger trees)
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
@@ -174,10 +175,11 @@ function TreeInstance({ inst, treeScenes }: { inst: TreeInstance; treeScenes: TH
   const ref = useRef<THREE.Group>(null);
   const scene = treeScenes[inst.variant];
 
-  // Pre-multiply scale by GLOBAL_SCALE so tree size is realistic (~1.5-3m)
+  // Pre-multiply scale by GLOBAL_SCALE so tree size is realistic (~6-12m tall for
+  // jungle canopy). Per-instance scale 1.0-1.8 gives variety within that range.
   // and is independent of the tree's position. This way the trees are
   // placed at their actual world coordinates (not scaled by parent).
-  const GLOBAL_SCALE = 0.025;
+  const GLOBAL_SCALE = 0.18;
   const finalScale = inst.scale * GLOBAL_SCALE;
 
   // Clone once per instance so we can tweak materials without affecting others
