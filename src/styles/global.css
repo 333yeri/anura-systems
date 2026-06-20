@@ -1,0 +1,27 @@
+:root {
+  --void: #080808;
+  --mist: #1C1E21;
+  --peat: #1A241A;
+  --spectrum: #8A9098;
+  --embers: #D4AF37;
+  --ink: #E8E8E8;
+}
+
+html, body, #root {
+  background: var(--void);
+  color: var(--ink);
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+::selection {
+  background: var(--embers);
+  color: var(--void);
+}
