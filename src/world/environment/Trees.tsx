@@ -78,13 +78,16 @@ function buildForest(seed = 42): TreeInstance[] {
   };
 
   const zones: Zone[] = [
-    // Entry zone: skip first 12 samples (spawn area) so trees never block the camera.
-    // Trees start where the path actually bends away from camera forward direction.
-    { sampleRange: [12, 22],  countPerSide: 3,  sideSpread: 6.0, isHero: false }, // entry (further out for larger trees)
-    { sampleRange: [22, 35],  countPerSide: 5,  sideSpread: 4.5, isHero: false }, // transition
-    { sampleRange: [35, 60],  countPerSide: 8,  sideSpread: 3.5, isHero: true  }, // dense rainforest
-    { sampleRange: [60, 72],  countPerSide: 5,  sideSpread: 5.0, isHero: false }, // opening up
-    { sampleRange: [72, 80],  countPerSide: 4,  sideSpread: 6.5, isHero: false }, // 90° turn + clearing (sparse framing)
+    // Entry zone: dense forest framing
+    { sampleRange: [12, 22],  countPerSide: 10, sideSpread: 4.0, isHero: false },
+    // Transition: increasing density
+    { sampleRange: [22, 35],  countPerSide: 14, sideSpread: 3.5, isHero: false },
+    // Dense rainforest: MAXIMUM density (heavy canopy coverage)
+    { sampleRange: [35, 60],  countPerSide: 22, sideSpread: 3.0, isHero: true  },
+    // Opening up: medium density
+    { sampleRange: [60, 72],  countPerSide: 12, sideSpread: 4.0, isHero: false },
+    // 90° turn + Act 4 reveal: framing trees (denser near clearing)
+    { sampleRange: [72, 80],  countPerSide: 10, sideSpread: 5.0, isHero: false },
   ];
 
   // CAMERA SPAWN POSITION — must match ScrollCamera initial pos + World.tsx camera

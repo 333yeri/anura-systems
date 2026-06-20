@@ -211,8 +211,20 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     }));
   }, []);
 
+  // Track the last scroll position so we only update when user actually scrolled
+  // (no continuous auto-play). Without this, the camera would constantly
+  // damp toward the target even when the user isn't scrolling.
+  const lastScroll = useRef<number>(-1);
+
   useFrame(() => {
     const t = scrollRef.current;
+
+    // Only update camera when scroll has actually changed.
+    // This prevents continuous auto-play — the camera holds still until
+    // the user scrolls. The user explicitly controls the journey.
+    if (t === lastScroll.current) return;
+    lastScroll.current = t;
+
     const curve = buildCurve();
 
     // Find segment
@@ -230,34 +242,33 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     const k1 = keyframeLookup[i1];
     const localT = (t - k0.t) / Math.max(k1.t - k0.t, 0.001);
 
-    // Smooth easing for cinematic feel
+    // Smooth easing for cinematic feel between keyframes
     const eased = localT * localT * (3 - 2 * localT);  // smoothstep
 
     // Interpolate position
     const pos = new THREE.Vector3().lerpVectors(k0.pos, k1.pos, eased);
-    // Add a slight Y bob for organic motion
+    // Slight Y bob for organic motion
     pos.y += Math.sin(t * Math.PI * 6) * 0.05;
 
-    // CRITICAL: Compute lookAt from the actual curve tangent at this point,
-    // not from fixed keyframe values. This ensures the camera ALWAYS faces
-    // along the path direction, so trees perpendicular to the path are visible.
+    // Compute lookAt from the actual curve tangent at this point
     const curveT = THREE.MathUtils.clamp(t, 0, 1);
     const tangent = curve.getTangentAt(curveT);
-    // Look at: position + tangent direction (5m ahead)
     const look = pos.clone().add(tangent.clone().multiplyScalar(5));
-    // Stay at eye height
     look.y = pos.y;
 
-    // Damp camera to target (slight lag for cinematic feel)
+    // Light dampening (0.5 = ~50% of remaining distance per change).
+    // Tighter than before — camera doesn't drift continuously.
+    // The user-driven scroll directly controls position; the damp just
+    // smooths the transition between scroll events.
     lastPos.current = [
-      THREE.MathUtils.lerp(lastPos.current[0], pos.x, 0.15),
-      THREE.MathUtils.lerp(lastPos.current[1], pos.y, 0.15),
-      THREE.MathUtils.lerp(lastPos.current[2], pos.z, 0.15),
+      THREE.MathUtils.lerp(lastPos.current[0], pos.x, 0.5),
+      THREE.MathUtils.lerp(lastPos.current[1], pos.y, 0.5),
+      THREE.MathUtils.lerp(lastPos.current[2], pos.z, 0.5),
     ];
     lastLook.current = [
-      THREE.MathUtils.lerp(lastLook.current[0], look.x, 0.15),
-      THREE.MathUtils.lerp(lastLook.current[1], look.y, 0.15),
-      THREE.MathUtils.lerp(lastLook.current[2], look.z, 0.15),
+      THREE.MathUtils.lerp(lastLook.current[0], look.x, 0.5),
+      THREE.MathUtils.lerp(lastLook.current[1], look.y, 0.5),
+      THREE.MathUtils.lerp(lastLook.current[2], look.z, 0.5),
     ];
 
     camera.position.set(...lastPos.current);
