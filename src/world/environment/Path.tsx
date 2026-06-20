@@ -56,35 +56,34 @@ import { palette, hexToVec3 } from '../../shared/palette';
 
 export const PATH_KEYFRAMES: Array<{ pos: [number, number, number]; lookAt: [number, number, number]; t: number; label: string }> = [
   // Act 3 entry — open forest, clear sky
-  { t: 0.00, pos: [0, 1.6, 0],     lookAt: [1, 1.6, -3],   label: 'frog spawn / Act 3 start' },
-  { t: 0.05, pos: [1.0, 1.6, -3],  lookAt: [2.5, 1.6, -7], label: 'enter jungle — first turn right' },
+  { t: 0.00, pos: [0, 1.6, 5],     lookAt: [1, 1.6, 2],   label: 'frog spawn / Act 3 start' }, // Camera starts 5m BEHIND spawn point
+  { t: 0.05, pos: [1.0, 1.6, 2],   lookAt: [2.5, 1.6, -2], label: 'enter jungle — first turn right' },
 
   // First big bend through jungle (trees should be visible left/right here)
-  { t: 0.15, pos: [3, 1.6, -7],    lookAt: [5, 1.6, -12],  label: 'snake through dense 1' },
-  { t: 0.25, pos: [5, 1.6, -13],   lookAt: [2, 1.6, -18],  label: 'curve back-left' },
-  { t: 0.35, pos: [1, 1.6, -19],   lookAt: [-3, 1.6, -22], label: 'swing left' },
+  { t: 0.15, pos: [3, 1.6, -2],    lookAt: [5, 1.6, -7], label: 'snake through dense 1' },
+  { t: 0.25, pos: [5, 1.6, -8],    lookAt: [2, 1.6, -13], label: 'curve back-left' },
+  { t: 0.35, pos: [1, 1.6, -14],   lookAt: [-3, 1.6, -17], label: 'swing left' },
 
   // Dense jungle S-curve (no preview of what's coming)
-  { t: 0.45, pos: [-4, 1.6, -22],  lookAt: [-7, 1.6, -27], label: 'dense jungle left' },
-  { t: 0.55, pos: [-8, 1.6, -28],  lookAt: [-4, 1.6, -33], label: 'dense jungle S-curve' },
-  { t: 0.62, pos: [-2, 1.6, -34],  lookAt: [2, 1.6, -38], label: 'dense jungle back-right' },
-  { t: 0.70, pos: [4, 1.6, -39],   lookAt: [7, 1.6, -42], label: 'dense jungle right' },
-  { t: 0.78, pos: [8, 1.6, -43],   lookAt: [10, 1.6, -48], label: 'dense jungle final' },
+  { t: 0.45, pos: [-4, 1.6, -17],  lookAt: [-7, 1.6, -22], label: 'dense jungle left' },
+  { t: 0.55, pos: [-8, 1.6, -23],  lookAt: [-4, 1.6, -28], label: 'dense jungle S-curve' },
+  { t: 0.62, pos: [-2, 1.6, -29],  lookAt: [2, 1.6, -33], label: 'dense jungle back-right' },
+  { t: 0.70, pos: [4, 1.6, -34],   lookAt: [7, 1.6, -37], label: 'dense jungle right' },
+  { t: 0.78, pos: [8, 1.6, -38],   lookAt: [10, 1.6, -43], label: 'dense jungle final' },
 
   // Pre-turn approach — bend right to set up the 90°
-  { t: 0.85, pos: [10, 1.6, -49],  lookAt: [13, 1.6, -53], label: 'approaching the turn' },
+  { t: 0.85, pos: [10, 1.6, -44],  lookAt: [13, 1.6, -48], label: 'approaching the turn' },
 
   // 90° RIGHT TURN — the camera turns to face into Act 4
   // Position rotates around a pivot point to make a clean corner.
   // Before turn: facing -Z (forward). After turn: facing +X (right).
-  { t: 0.92, pos: [13, 1.6, -54], lookAt: [16, 1.6, -52], label: '90° turn start' },
-  { t: 0.96, pos: [16, 1.6, -52], lookAt: [18, 1.6, -48], label: '90° turn mid' },
-  { t: 0.99, pos: [18, 1.6, -48], lookAt: [18, 1.6, -42], label: '90° turn complete — Act 4 revealed' },
+  { t: 0.92, pos: [13, 1.6, -49], lookAt: [16, 1.6, -47], label: '90° turn start' },
+  { t: 0.96, pos: [16, 1.6, -47], lookAt: [18, 1.6, -43], label: '90° turn mid' },
+  { t: 0.99, pos: [18, 1.6, -43], lookAt: [18, 1.6, -37], label: '90° turn complete — Act 4 revealed' },
 
   // Act 4 final — camera settled, looking down the path into the clearing
-  { t: 1.00, pos: [18, 1.6, -46], lookAt: [18, 1.4, -38], label: 'Act 4 settled — fire + Yeri + moon' },
+  { t: 1.00, pos: [18, 1.6, -41], lookAt: [18, 1.4, -33], label: 'Act 4 settled — fire + Yeri + moon' },
 ];
-
 // Build the curve from keyframes
 function buildCurve(): THREE.CatmullRomCurve3 {
   const points = PATH_KEYFRAMES.map((k) => new THREE.Vector3(...k.pos));
@@ -198,6 +197,7 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
 
   useFrame(() => {
     const t = scrollRef.current;
+    const curve = buildCurve();
 
     // Find segment
     let i0 = 0;
@@ -222,8 +222,15 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     // Add a slight Y bob for organic motion
     pos.y += Math.sin(t * Math.PI * 6) * 0.05;
 
-    // Look at is also interpolated, with a bit of look-ahead
-    const look = new THREE.Vector3().lerpVectors(k0.lookAt, k1.lookAt, eased);
+    // CRITICAL: Compute lookAt from the actual curve tangent at this point,
+    // not from fixed keyframe values. This ensures the camera ALWAYS faces
+    // along the path direction, so trees perpendicular to the path are visible.
+    const curveT = THREE.MathUtils.clamp(t, 0, 1);
+    const tangent = curve.getTangentAt(curveT);
+    // Look at: position + tangent direction (5m ahead)
+    const look = pos.clone().add(tangent.clone().multiplyScalar(5));
+    // Stay at eye height
+    look.y = pos.y;
 
     // Damp camera to target (slight lag for cinematic feel)
     lastPos.current = [

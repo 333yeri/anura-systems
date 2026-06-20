@@ -80,12 +80,18 @@ function buildForest(seed = 42): TreeInstance[] {
   const zones: Zone[] = [
     // Entry zone: skip first 12 samples (spawn area) so trees never block the camera.
     // Trees start where the path actually bends away from camera forward direction.
-    { sampleRange: [12, 22],  countPerSide: 4,  sideSpread: 4.5, isHero: false }, // entry
-    { sampleRange: [22, 35],  countPerSide: 6,  sideSpread: 3.2, isHero: false }, // transition
-    { sampleRange: [35, 60],  countPerSide: 10, sideSpread: 2.5, isHero: true  }, // dense rainforest
-    { sampleRange: [60, 72],  countPerSide: 6,  sideSpread: 3.5, isHero: false }, // opening up
-    { sampleRange: [72, 80],  countPerSide: 4,  sideSpread: 5.5, isHero: false }, // 90° turn + clearing
+    { sampleRange: [12, 22],  countPerSide: 3,  sideSpread: 5.0, isHero: false }, // entry (Fewer trees, further out)
+    { sampleRange: [22, 35],  countPerSide: 5,  sideSpread: 4.0, isHero: false }, // transition
+    { sampleRange: [35, 60],  countPerSide: 8,  sideSpread: 3.0, isHero: true  }, // dense rainforest (still dense, but not wall-like)
+    { sampleRange: [60, 72],  countPerSide: 5,  sideSpread: 4.5, isHero: false }, // opening up
+    { sampleRange: [72, 80],  countPerSide: 3,  sideSpread: 6.0, isHero: false }, // 90° turn + clearing (sparse framing)
   ];
+
+  // CAMERA SPAWN POSITION — must match ScrollCamera initial pos + World.tsx camera
+  // Spawn camera starts at (0, 1.6, 5) per Path.tsx. We block trees
+  // within SAFE_RADIUS of this point so they never block the spawn view.
+  const CAMERA_SPAWN = { x: 0, y: 0, z: 5 };
+  const SAFE_RADIUS = 12; // meters
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
@@ -117,6 +123,15 @@ function buildForest(seed = 42): TreeInstance[] {
         const sideOffset = zone.sideSpread + rng() * 1.2;
         const x = pathX + perpX * side * sideOffset;
         const z = pathZ + perpZ * side * sideOffset;
+
+        // SAFETY CHECK: skip trees within SAFE_RADIUS of camera spawn
+        // This is the ROOT FIX for "bushes blocking view at spawn"
+        const distToSpawn = Math.sqrt(
+          (x - CAMERA_SPAWN.x) ** 2 + (z - CAMERA_SPAWN.z) ** 2
+        );
+        if (distToSpawn < SAFE_RADIUS) {
+          continue; // Skip this tree — too close to camera spawn
+        }
 
         // Scale variation — note: GLOBAL_SCALE = 0.025, so per-instance
         // scale 1.0-1.8 gives tree height ~1.5-3m (realistic jungle size)
@@ -159,12 +174,21 @@ function TreeInstance({ inst, treeScenes }: { inst: TreeInstance; treeScenes: TH
   const ref = useRef<THREE.Group>(null);
   const scene = treeScenes[inst.variant];
 
+  // Pre-multiply scale by GLOBAL_SCALE so tree size is realistic (~1.5-3m)
+  // and is independent of the tree's position. This way the trees are
+  // placed at their actual world coordinates (not scaled by parent).
+  const GLOBAL_SCALE = 0.025;
+  const finalScale = inst.scale * GLOBAL_SCALE;
+
   // Clone once per instance so we can tweak materials without affecting others
   const cloned = useMemo(() => {
     const c = scene.clone(true);
+    // Mark as tree for debug overlay
+    c.userData.isTree = true;
     // Apply hue shift to leaf material only
     c.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {
+        obj.userData.isTree = true;
         const mat = obj.material as THREE.MeshStandardMaterial;
         if (mat && mat.name && mat.name.toLowerCase().includes('leav')) {
           // Clone material so we can tweak per-instance
@@ -184,7 +208,7 @@ function TreeInstance({ inst, treeScenes }: { inst: TreeInstance; treeScenes: TH
   }, [scene, inst.hueShift]);
 
   return (
-    <group ref={ref} position={inst.position} rotation={[0, inst.rotationY, 0]} scale={inst.scale}>
+    <group ref={ref} position={inst.position} rotation={[0, inst.rotationY, 0]} scale={finalScale}>
       <primitive object={cloned} />
     </group>
   );
@@ -195,12 +219,10 @@ export default function Trees() {
   const treeScenes = TREE_PATHS.map((p) => useGLTF(p).scene);
 
   // Build deterministic forest layout
-  // NOTE: tree GLBs are sized 20-60 units in their source files (per inspection).
-  // World scale is ~1 unit = 1 meter.
-  // GLOBAL_SCALE = 0.025 makes trees 0.5-1.5m tall in-scene — realistic understory size
-  // (smaller so they don't fill the frame when camera is close)
+  // NOTE: tree GLBs are sized 20-60 units in their source files.
+  // World scale: 1 unit = 1 meter. Per-instance scale is pre-multiplied
+  // by GLOBAL_SCALE so trees are realistic jungle size.
   const instances = useMemo(() => buildForest(42), []);
-  const GLOBAL_SCALE = 0.025;
 
   // Cast shadows for hero trees only (perf optimization)
   useEffect(() => {
@@ -215,10 +237,10 @@ export default function Trees() {
   }, [treeScenes]);
 
   return (
-    <group scale={GLOBAL_SCALE}>
+    <>
       {instances.map((inst, i) => (
         <TreeInstance key={i} inst={inst} treeScenes={treeScenes} />
       ))}
-    </group>
+    </>
   );
 }
