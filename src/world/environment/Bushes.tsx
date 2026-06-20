@@ -160,10 +160,11 @@ function buildBushes(seed = 44): BushInstance[] {
     const heightVar = 0.7 + rng() * 0.4;
     const depthVar = 0.85 + rng() * 0.3;
 
-    // Color tint — brighter green for visibility in dark jungle
-    const hue = 0.28 + (rng() - 0.5) * 0.06; // slightly more yellow-green
+    // Color tint — bright green-yellow for VISIBILITY in dark jungle
+    // Higher lightness (0.32-0.50) so they show against dark mud ground
+    const hue = 0.28 + (rng() - 0.5) * 0.06;
     const sat = 0.55 + rng() * 0.30;
-    const light = 0.22 + rng() * 0.15; // brighter (was 0.16) — actually visible as foliage
+    const light = 0.32 + rng() * 0.18; // BRIGHT (was 0.22)
     const col = new THREE.Color().setHSL(hue, sat, light);
 
     bushes.push({
@@ -224,11 +225,13 @@ function BushMesh({ instances }: { instances: BushInstance[] }) {
       receiveShadow={false}
     >
       <meshStandardMaterial
-        roughness={0.95}
+        roughness={0.85}
         metalness={0.0}
         vertexColors
         flatShading
         side={THREE.DoubleSide}
+        emissive="#1a3a0e"
+        emissiveIntensity={0.15}
       />
     </instancedMesh>
   );
