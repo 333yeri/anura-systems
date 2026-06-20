@@ -1,22 +1,25 @@
 /**
- * Bushes — dense low understory that blocks line of sight
+ * Bushes — proper bush shapes (not spheres), blocking line-of-sight in understory
  *
- * User feedback: 'we need more bushes to fill so we cant look further ahead'
+ * User feedback: 'the bushes look like balls not like bushes'
  *
- * Trees are tall (7-12m) but the user can see far between them.
- * Bushes fill the understory — 0.5-1.5m tall — blocking sight lines
- * along the path so the journey feels enclosed and intimate.
+ * Real bushes are:
+ * - Wider than tall (1.5-2x wider)
+ * - Multi-lobed (multiple bumps clustered together)
+ * - Irregular top, not perfect dome
+ * - Have visible leaf detail
  *
- * Bushes are scattered DENSELY across the entire world area, including
- * right next to the path. They use simple sphere geometry (no GLB
- * needed) for performance — 500+ bushes would crash if we used GLBs.
+ * Solution: pre-bake a "bush cluster" geometry — 3-4 overlapping deformed
+ * spheres merged into one mesh — then instance it 600 times across the
+ * world. Per-instance variation via scale, rotation, color tint.
+ *
+ * Performance: 1 draw call via InstancedMesh (was already).
  */
 
 import { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
 
-// Mulberry32 PRNG for deterministic layout
+// Mulberry32 PRNG
 function mulberry32(seed: number) {
   return function () {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -29,69 +32,143 @@ function mulberry32(seed: number) {
 
 interface BushInstance {
   position: [number, number, number];
-  scale: number;
+  scale: [number, number, number]; // width, height, depth (wider than tall)
   rotationY: number;
-  color: [number, number, number]; // vertex color tint
+  color: [number, number, number];
 }
 
-const BUSH_COUNT = 600;
+const BUSH_COUNT = 500;
+
+/**
+ * Build a single bush cluster geometry — multiple deformed spheres
+ * merged into one BufferGeometry. Result: a multi-lobed organic bush shape.
+ */
+function buildBushClusterGeometry(seed: number): THREE.BufferGeometry {
+  const rng = mulberry32(seed);
+
+  // 4-6 overlapping deformed spheres per bush, each scaled and offset
+  const lobeCount = 4 + Math.floor(rng() * 3); // 4-6 lobes
+  const merged = new THREE.BufferGeometry();
+
+  // Collect merged attributes
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+
+  // Bush is wider than tall (1.5x wider on X-axis)
+  const baseWidth = 1.0;
+  const baseHeight = 0.7; // squashed
+  const baseDepth = 0.9;
+
+  for (let lobe = 0; lobe < lobeCount; lobe++) {
+    // Each lobe is a sphere offset from center
+    const offsetX = (rng() - 0.5) * 0.7;
+    const offsetY = (rng() - 0.5) * 0.3; // small Y offset
+    const offsetZ = (rng() - 0.5) * 0.6;
+
+    // Each lobe has slightly different size for organic variation
+    const lobeSize = 0.45 + rng() * 0.35;
+
+    // Create sphere geometry for this lobe
+    const sphereGeo = new THREE.SphereGeometry(lobeSize, 7, 5);
+
+    // Deform vertices slightly (jitter for organic feel)
+    const pos = sphereGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+
+      // Random jitter proportional to radius (more at edges)
+      const jitter = 0.15;
+      const jx = (rng() - 0.5) * jitter * lobeSize;
+      const jy = (rng() - 0.5) * jitter * lobeSize * 0.5;
+      const jz = (rng() - 0.5) * jitter * lobeSize;
+
+      pos.setXYZ(i, x + jx, y + jy, z + jz);
+    }
+
+    // Apply squash (wider than tall) + offset to lobe position
+    const matrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(offsetX * baseWidth, offsetY * baseHeight, offsetZ * baseDepth),
+      new THREE.Quaternion(),
+      new THREE.Vector3(baseWidth, baseHeight, baseDepth)
+    );
+    sphereGeo.applyMatrix4(matrix);
+    sphereGeo.computeVertexNormals();
+
+    // Append this sphere's attributes to merged
+    const spherePos = sphereGeo.attributes.position;
+    const sphereNorm = sphereGeo.attributes.normal;
+    const sphereCount = spherePos.count;
+
+    for (let i = 0; i < sphereCount; i++) {
+      positions.push(spherePos.getX(i), spherePos.getY(i), spherePos.getZ(i));
+      normals.push(sphereNorm.getX(i), sphereNorm.getY(i), sphereNorm.getZ(i));
+
+      // Each vertex gets same color (color is per-instance via InstancedMesh)
+      colors.push(1, 1, 1);
+    }
+
+    sphereGeo.dispose();
+  }
+
+  merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  merged.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  merged.computeVertexNormals();
+
+  return merged;
+}
 
 function buildBushes(seed = 44): BushInstance[] {
   const rng = mulberry32(seed);
   const bushes: BushInstance[] = [];
 
-  // Coverage area: same as background forest
   const X_MIN = -30;
   const X_MAX = 30;
   const Z_MIN = -90;
   const Z_MAX = 5;
 
-  // Path keyframes (same as Path.tsx) for path corridor exclusion
+  // Path keyframes (same as Path.tsx)
   const pathKeyframes: Array<[number, number]> = [
     [0, 0], [2, 1], [-2, 3], [-7, 5], [-14, -1], [-19, -6], [-26, -2],
     [-32, 4], [-38, 6], [-44, 10], [-42, 16], [-38, 14], [-36, 14],
   ];
 
   for (let i = 0; i < BUSH_COUNT; i++) {
-    // Random position in world area
     const x = X_MIN + rng() * (X_MAX - X_MIN);
     const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
 
-    // Skip too close to spawn (let spawn view be clear)
+    // Skip too close to spawn
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 14) continue;
 
-    // Skip path corridor — but smaller than trees (1.5m so bushes can crowd the path edges)
+    // Skip path corridor (small exclusion)
     let tooCloseToPath = false;
     for (const [px, pz] of pathKeyframes) {
       const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
-      if (dist < 1.5) {
+      if (dist < 1.2) {
         tooCloseToPath = true;
         break;
       }
     }
     if (tooCloseToPath) continue;
 
-    // Small scale (0.5-1.5m tall bushes)
-    const scaleRoll = rng();
-    let scale: number;
-    if (scaleRoll < 0.6) {
-      scale = 0.4 + rng() * 0.3; // 0.4-0.7m (small ferns)
-    } else if (scaleRoll < 0.9) {
-      scale = 0.7 + rng() * 0.5; // 0.7-1.2m (medium bushes)
-    } else {
-      scale = 1.2 + rng() * 0.4; // 1.2-1.6m (large bushes)
-    }
+    // Bush size variation
+    const baseScale = 0.4 + rng() * 0.8; // 0.4-1.2m wide
+    const widthVar = 0.9 + rng() * 0.3;
+    const heightVar = 0.7 + rng() * 0.4;
+    const depthVar = 0.85 + rng() * 0.3;
 
-    // Color tint — variations of dark green
-    const hue = 0.30 + (rng() - 0.5) * 0.06; // green hue
-    const sat = 0.55 + rng() * 0.25;
-    const light = 0.18 + rng() * 0.10; // lighter (was 0.08) — reads as foliage not shadow
+    // Color tint — brighter green for visibility in dark jungle
+    const hue = 0.28 + (rng() - 0.5) * 0.06; // slightly more yellow-green
+    const sat = 0.55 + rng() * 0.30;
+    const light = 0.22 + rng() * 0.15; // brighter (was 0.16) — actually visible as foliage
     const col = new THREE.Color().setHSL(hue, sat, light);
 
     bushes.push({
       position: [x, -0.5, z],
-      scale,
+      scale: [baseScale * widthVar, baseScale * heightVar, baseScale * depthVar],
       rotationY: rng() * Math.PI * 2,
       color: [col.r, col.g, col.b],
     });
@@ -101,12 +178,19 @@ function buildBushes(seed = 44): BushInstance[] {
 }
 
 /**
- * Single Bush — instanced sphere with vertex colors.
- *
- * Using InstancedMesh for performance (600 instances, 1 draw call).
+ * Instanced bush renderer
  */
 function BushMesh({ instances }: { instances: BushInstance[] }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  // Pre-bake ONE bush cluster geometry (random shape, used for all instances)
+  const bushGeometry = useMemo(() => buildBushClusterGeometry(45), []);
+
+  useEffect(() => {
+    return () => {
+      bushGeometry.dispose();
+    };
+  }, [bushGeometry]);
 
   useEffect(() => {
     const mesh = meshRef.current;
@@ -116,9 +200,13 @@ function BushMesh({ instances }: { instances: BushInstance[] }) {
     const color = new THREE.Color();
 
     instances.forEach((bush, i) => {
-      dummy.position.set(bush.position[0], bush.position[1] + bush.scale * 0.5, bush.position[2]);
+      dummy.position.set(
+        bush.position[0],
+        bush.position[1] + bush.scale[1] * 0.3, // lift so bottom is at ground
+        bush.position[2]
+      );
       dummy.rotation.set(0, bush.rotationY, 0);
-      dummy.scale.setScalar(bush.scale);
+      dummy.scale.set(bush.scale[0], bush.scale[1], bush.scale[2]);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       color.setRGB(bush.color[0], bush.color[1], bush.color[2]);
@@ -126,29 +214,21 @@ function BushMesh({ instances }: { instances: BushInstance[] }) {
     });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [instances]);
-
-  // Animate gentle sway (very subtle)
-  useFrame(({ clock }) => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    // No need to animate for now — bushes are static
-  });
+  }, [instances, bushGeometry]);
 
   return (
     <instancedMesh
       ref={meshRef}
-      args={[undefined, undefined, BUSH_COUNT]}
+      args={[bushGeometry, undefined, BUSH_COUNT]}
       castShadow={false}
       receiveShadow={false}
     >
-      {/* Slightly higher subdivision for organic look */}
-      <sphereGeometry args={[1, 8, 6]} />
       <meshStandardMaterial
-        roughness={0.9}
+        roughness={0.95}
         metalness={0.0}
         vertexColors
         flatShading
+        side={THREE.DoubleSide}
       />
     </instancedMesh>
   );
