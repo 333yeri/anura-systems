@@ -328,32 +328,11 @@ function HeroTreePlaceholder({ position, scale = 1 }: { position: [number, numbe
 }
 
 // =================================================================
-// FOG PLANES — 3 layered semi-transparent planes for atmospheric depth
+// FOG — single exponential fog (the FogPlanes read as solid stripes,
+// so they're disabled for now — M11 polish will revisit)
 // =================================================================
 
-function FogPlanes() {
-  const fogPlanes = useMemo(() => [
-    { pos: [0, 1.5, -25], opacity: 0.15, scale: [60, 8, 1] },
-    { pos: [0, 1.5, -45], opacity: 0.25, scale: [80, 10, 1] },
-    { pos: [0, 1.5, -70], opacity: 0.4, scale: [100, 12, 1] },
-  ], []);
-
-  return (
-    <>
-      {fogPlanes.map((p, i) => (
-        <mesh key={i} position={p.pos as [number, number, number]} renderOrder={10 + i}>
-          <planeGeometry args={p.scale as [number, number]} />
-          <meshBasicMaterial
-            color={palette.mist_cool}
-            transparent
-            opacity={p.opacity}
-            depthWrite={false}
-          />
-        </mesh>
-      ))}
-    </>
-  );
-}
+// (FogPlanes disabled — see World.tsx for the FogExp2 setup)
 
 // =================================================================
 // MAIN SCENE — wires everything together
@@ -372,7 +351,8 @@ export default function World() {
 
     // Set scene background to void
     scene.background = new THREE.Color(palette.void_000);
-    scene.fog = new THREE.FogExp2(palette.mist_cool, 0.025);
+    // Stronger fog — denser for the night jungle feel, fades distant trees
+    scene.fog = new THREE.FogExp2(palette.mist_cool, 0.06);
   }, [gl, scene]);
 
   return (
@@ -380,7 +360,6 @@ export default function World() {
       {/* === ATMOSPHERE === */}
       <Sky />
       <Moon />
-      <FogPlanes />
 
       {/* === LIGHTING (per VQS lock) === */}
       {/* Key light: the moon (warm, from upper-center) */}

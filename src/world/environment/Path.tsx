@@ -39,25 +39,33 @@ import { palette, hexToVec3 } from '../../shared/palette';
 export const PATH_KEYFRAMES: Array<{ pos: [number, number, number]; lookAt: [number, number, number]; t: number; label: string }> = [
   // Act 3 entry — open forest, clear sky
   { t: 0.00, pos: [0, 1.6, 0],    lookAt: [1, 1.6, -3],   label: 'frog spawn / Act 3 start' },
-  { t: 0.08, pos: [1.2, 1.6, -3], lookAt: [2, 1.6, -8],   label: 'enter jungle' },
-  { t: 0.16, pos: [2.5, 1.6, -8], lookAt: [3, 1.6, -14],  label: 'snake through dense 1' },
+  { t: 0.05, pos: [1.0, 1.6, -3], lookAt: [2.5, 1.6, -7], label: 'enter jungle — first turn right' },
 
-  // Dense jungle S-curve — no preview of what's coming
-  { t: 0.28, pos: [3, 1.6, -14],  lookAt: [0, 1.6, -22],  label: 'dense jungle turn' },
-  { t: 0.40, pos: [-1, 1.6, -22], lookAt: [-4, 1.6, -28], label: 'dense jungle S-curve' },
-  { t: 0.52, pos: [-5, 1.6, -28], lookAt: [-2, 1.6, -34], label: 'dense jungle back-right' },
-  { t: 0.64, pos: [0, 1.6, -34],  lookAt: [3, 1.6, -40],  label: 'dense jungle center' },
-  { t: 0.74, pos: [4, 1.6, -40],  lookAt: [5, 1.6, -46],  label: 'dense jungle final' },
+  // First big bend through jungle (trees should be visible left/right here)
+  { t: 0.12, pos: [3, 1.6, -7],   lookAt: [5, 1.6, -12],  label: 'snake through dense 1' },
+  { t: 0.20, pos: [5, 1.6, -13],  lookAt: [2, 1.6, -18],  label: 'curve back-left' },
+  { t: 0.28, pos: [1, 1.6, -19],  lookAt: [-3, 1.6, -22], label: 'swing left' },
 
-  // Sharp right turn — approaching Act 4
-  { t: 0.84, pos: [6, 1.6, -46],  lookAt: [8, 1.6, -52],  label: 'sharp right turn' },
+  // Dense jungle S-curve (no preview of what's coming)
+  { t: 0.36, pos: [-4, 1.6, -22], lookAt: [-7, 1.6, -27], label: 'dense jungle left' },
+  { t: 0.44, pos: [-8, 1.6, -28], lookAt: [-4, 1.6, -33], label: 'dense jungle S-curve' },
+  { t: 0.52, pos: [-2, 1.6, -34], lookAt: [2, 1.6, -38], label: 'dense jungle back-right' },
+  { t: 0.60, pos: [4, 1.6, -39],  lookAt: [7, 1.6, -42], label: 'dense jungle right' },
+  { t: 0.68, pos: [8, 1.6, -43],  lookAt: [5, 1.6, -48], label: 'dense jungle final' },
 
-  // Act 4 reveal — clearing appears around the corner
-  { t: 0.92, pos: [9, 1.6, -52],  lookAt: [12, 1.6, -55], label: 'Act 4 reveal start' },
-  { t: 0.97, pos: [12, 1.6, -55], lookAt: [14, 1.6, -57], label: 'Act 4 fire camp visible' },
+  // Pre-U-turn approach — bend right then back left
+  { t: 0.76, pos: [3, 1.6, -49],  lookAt: [-2, 1.6, -53], label: 'sharp turn to left (back)' },
 
-  // Act 4 final — camera settles looking at campfire + Yeri
-  { t: 1.00, pos: [13, 1.6, -57], lookAt: [14, 1.5, -60], label: 'Act 4 settled — fire + Yeri + moon' },
+  // U-TURN — the camera turns 180° here, looking back at what was behind
+  { t: 0.84, pos: [-3, 1.6, -55], lookAt: [0, 1.6, -50], label: 'U-turn start — looking back' },
+  { t: 0.90, pos: [-2, 1.6, -52], lookAt: [2, 1.6, -50], label: 'U-turn mid — sweeping right' },
+  { t: 0.95, pos: [2, 1.6, -51],  lookAt: [6, 1.6, -52], label: 'U-turn end — facing forward+right' },
+
+  // Act 4 reveal — clearing appears around the corner (after U-turn)
+  { t: 0.98, pos: [5, 1.6, -52],  lookAt: [10, 1.6, -54], label: 'Act 4 reveal — fire visible' },
+
+  // Act 4 final — camera settled, looking at campfire + Yeri + moon
+  { t: 1.00, pos: [7, 1.6, -53],  lookAt: [11, 1.5, -56], label: 'Act 4 settled — fire + Yeri + moon' },
 ];
 
 // Build the curve from keyframes
@@ -244,4 +252,16 @@ export function getPositionAlongPath(t: number): THREE.Vector3 {
 export function getTangentAlongPath(t: number): THREE.Vector3 {
   const curve = buildCurve();
   return curve.getTangentAt(THREE.MathUtils.clamp(t, 0, 1));
+}
+
+// Sample the path curve at N points and return [x, z] pairs for tree placement
+export function samplePathPoints(samples = 80): Array<[number, number]> {
+  const curve = buildCurve();
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const p = curve.getPointAt(t);
+    pts.push([p.x, p.z]);
+  }
+  return pts;
 }
