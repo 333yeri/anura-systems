@@ -34,6 +34,12 @@ const debugState = {
   treePositions: [] as Array<{ x: number; y: number; z: number }>,
 };
 
+// SHARED REF: ScrollCamera writes its INTENDED rotation here.
+// ParallaxCamera reads from here to apply mouse-look ON TOP, without
+// carrying forward the previous frame's parallax offset (which would
+// cause cumulative drift).
+export const scrollIntendedQuat = { current: new THREE.Quaternion() };
+
 export function getDebugState() {
   return debugState;
 }
@@ -249,10 +255,18 @@ function MouseDriver() {
       // Normalize to [-1, +1]
       const nx = (e.clientX / window.innerWidth) * 2 - 1;
       const ny = (e.clientY / window.innerHeight) * 2 - 1;
-      // FPS-style: mouse-left → camera turns left
-      // Feed raw normalized position; ParallaxCamera scales by ±0.2 rad
-      mouseParallax.x = -nx;
-      mouseParallax.y = -ny;
+      // FPS-style: mouse-left → camera turns LEFT.
+            // Math: nx=-1 at left edge of screen. We want the camera to turn left
+            // (positive yaw around camera-local Y in three.js right-handed coords
+            // is a LEFT turn when looking forward). Wait — actually positive yaw
+            // around world +Y in right-hand rule is counterclockwise from above,
+            // which is a LEFT turn from the camera's POV looking forward.
+            //
+            // Confirmed by audit: mouse-left with mouseParallax.x = -nx produced
+            // a POSITIVE yaw delta in world space, which corresponds to a LEFT
+            // turn of the camera looking forward. So -nx is CORRECT.
+            mouseParallax.x = -nx;
+            mouseParallax.y = -ny;
     };
     window.addEventListener('mousemove', handler, { passive: true });
     return () => window.removeEventListener('mousemove', handler);
@@ -284,45 +298,41 @@ function ParallaxCamera() {
   const { camera } = useThree();
   const scrollQuat = useRef(new THREE.Quaternion());
 
-  // Track last mouse position so we only update on actual mouse movement
-  // (no drift while idle)
-  const lastMouseX = useRef<number>(999);
-  const lastMouseY = useRef<number>(999);
-
   // Max yaw/pitch in radians (20% of viewport)
   const MAX_OFFSET = 0.2;
 
   useFrame(() => {
-    // Read current mouse parallax values
     const mouseX = mouseParallax.x;
     const mouseY = mouseParallax.y;
 
-    // Only update camera if mouse has actually moved (no drift while idle)
-    if (mouseX === lastMouseX.current && mouseY === lastMouseY.current) {
-      return;
-    }
-    lastMouseX.current = mouseX;
-    lastMouseY.current = mouseY;
+    // CRITICAL: Use scrollIntendedQuat (the scroll camera's INTENDED rotation
+    // from the last scroll update), NOT camera.quaternion (which has the
+    // previous frame's parallax baked in).
+    //
+    // Why: When scroll doesn't change, ScrollCamera early-returns and
+    // doesn't update camera.quaternion. So camera.quaternion stays at the
+    // last applied = scroll_intended * parallax. If we then apply parallax
+    // again, we get scroll_intended * parallax * parallax = drift.
+    //
+    // By reading scrollIntendedQuat (which ScrollCamera writes ONLY when
+    // scroll changes), we always apply parallax fresh relative to the
+    // scroll camera's true intent.
 
-    // Save scroll camera's intended rotation
-    scrollQuat.current.copy(camera.quaternion);
+    // Local axes from the scroll-intended rotation
+    const localYAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(scrollIntendedQuat.current);
+    const localXAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(scrollIntendedQuat.current);
 
-    // Linear scaling — mouse at edge → MAX_OFFSET rad.
-    // Since parallax is already normalized [-1, +1], multiplying by MAX_OFFSET
-    // gives the correct range with no clamp needed.
     const yawAngle = mouseX * MAX_OFFSET;
     const pitchAngle = mouseY * MAX_OFFSET;
 
-    const yawQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      yawAngle
-    );
-    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(1, 0, 0),
-      pitchAngle
-    );
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(localYAxis, yawAngle);
+    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(localXAxis, pitchAngle);
 
-    const final = scrollQuat.current.clone().multiply(yawQuat).multiply(pitchQuat);
+    // Apply parallax to the SCROLL INTENDED rotation (not the post-parallax rotation).
+    const final = scrollIntendedQuat.current.clone()
+      .multiply(yawQuat)
+      .multiply(pitchQuat);
+
     camera.quaternion.copy(final);
   });
 

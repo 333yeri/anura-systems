@@ -20,6 +20,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { palette, hexToVec3 } from '../../shared/palette';
+import { scrollIntendedQuat } from '../WorldCanvas';
 
 // =================================================================
 // PATH KEYFRAMES (12 keyframes matching the user diagram)
@@ -285,6 +286,11 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
 
     camera.position.set(...lastPos.current);
     camera.lookAt(...lastLook.current);
+
+    // CRITICAL: Write scroll camera's INTENDED rotation to the global shared ref.
+    // This is what ParallaxCamera reads to apply mouse-look on top, WITHOUT
+    // carrying forward the previous frame's parallax offset (which would cause drift).
+    scrollIntendedQuat.current.copy(camera.quaternion);
 
     if (onPositionChange) {
       onPositionChange(lastPos.current, lastLook.current);
