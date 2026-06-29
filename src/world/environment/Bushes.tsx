@@ -139,15 +139,16 @@ function buildBushes(seed = 44): BushInstance[] {
     const x = X_MIN + rng() * (X_MAX - X_MIN);
     const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
 
-    // Skip too close to spawn
+    // Skip too close to spawn (matches trees: 18m)
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
-    if (distToSpawn < 14) continue;
+    if (distToSpawn < 18) continue;
 
-    // Skip path corridor (small exclusion)
+    // Skip path corridor — bushes are smaller than trees so 2m exclusion
+    // still keeps them filling the understory but out of the camera's face.
     let tooCloseToPath = false;
     for (const [px, pz] of pathKeyframes) {
       const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
-      if (dist < 1.2) {
+      if (dist < 2.0) {
         tooCloseToPath = true;
         break;
       }

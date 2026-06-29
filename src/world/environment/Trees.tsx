@@ -78,24 +78,35 @@ function buildForest(seed = 42): TreeInstance[] {
   };
 
   const zones: Zone[] = [
-    // Entry zone: dense forest framing
-    { sampleRange: [12, 22],  countPerSide: 10, sideSpread: 4.0, isHero: false },
-    // Transition: increasing density
-    { sampleRange: [22, 35],  countPerSide: 14, sideSpread: 3.5, isHero: false },
-    // Dense rainforest: MAXIMUM density (heavy canopy coverage)
-    { sampleRange: [35, 60],  countPerSide: 22, sideSpread: 3.0, isHero: true  },
-    // Opening up: medium density
-    { sampleRange: [60, 72],  countPerSide: 12, sideSpread: 4.0, isHero: false },
-    // 90° turn + Act 4 reveal: framing trees (denser near clearing)
-    { sampleRange: [72, 80],  countPerSide: 10, sideSpread: 5.0, isHero: false },
+    // User feedback: 'make sure there is more space and no branches in the camera's
+    // face so it can observe more'. Trees are pushed FURTHER from the path so their
+    // canopies don't block the camera's view. Higher sideSpread means trees are
+    // placed further perpendicular to the path. Densities kept high so the forest
+    // still feels dense in the distance.
+    //
+    // Entry zone: dense forest framing (pushed out)
+    { sampleRange: [12, 22],  countPerSide: 9,  sideSpread: 5.5, isHero: false },
+    // Transition: increasing density (pushed out)
+    { sampleRange: [22, 35],  countPerSide: 12, sideSpread: 5.0, isHero: false },
+    // Dense rainforest: MAX density but FURTHER from path so camera has clear view
+    { sampleRange: [35, 60],  countPerSide: 18, sideSpread: 4.5, isHero: true  },
+    // Opening up: medium density (pushed out)
+    { sampleRange: [60, 72],  countPerSide: 11, sideSpread: 5.5, isHero: false },
+    // 90° turn + Act 4 reveal: framing trees (pushed out, sparser)
+    { sampleRange: [72, 80],  countPerSide: 9,  sideSpread: 7.0, isHero: false },
   ];
 
   // CAMERA SPAWN POSITION — must match ScrollCamera initial pos + World.tsx camera
   // Spawn camera starts at (0, 1.6, 5) per Path.tsx. We block trees
   // within SAFE_RADIUS of this point so they never block the spawn view.
-  // Larger radius accounts for tree canopy width (~3-5m) extending past origin.
   const CAMERA_SPAWN = { x: 0, y: 0, z: 5 };
-  const SAFE_RADIUS = 16; // meters (was 12 — increased for larger trees)
+  const SAFE_RADIUS = 18; // meters (was 16 — slightly bigger clear zone at spawn)
+
+  // MIN CORRIDOR WIDTH — minimum perpendicular distance from path center
+  // to any tree. This is the "no branches in face" guarantee.
+  // 4.0m means tree trunks stay at least 4m from the path. With tree
+  // canopies reaching ~3m radius, branches stay ~1m from camera path.
+  const MIN_CORRIDOR = 4.0;
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
@@ -124,7 +135,12 @@ function buildForest(seed = 42): TreeInstance[] {
         const perpX = -tangentZ / tangentLen;
         const perpZ = tangentX / tangentLen;
 
-        const sideOffset = zone.sideSpread + rng() * 1.2;
+        // Enforce minimum corridor: trees must be at least MIN_CORRIDOR
+        // perpendicular from the path. The zone.sideSpread is the base distance;
+        // we add jitter but never go below the minimum corridor width.
+        // This guarantees "no branches in camera's face" — canopies stay clear.
+        const minForZone = Math.max(zone.sideSpread, MIN_CORRIDOR);
+        const sideOffset = minForZone + rng() * 1.5;
         const x = pathX + perpX * side * sideOffset;
         const z = pathZ + perpZ * side * sideOffset;
 
@@ -201,18 +217,18 @@ function buildBackgroundForest(seed = 43): TreeInstance[] {
     const x = X_MIN + rng() * (X_MAX - X_MIN);
     const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
 
-    // Check if too close to path (within 3m)
+    // Check if too close to path (within 4m MIN_CORRIDOR — keep camera clear)
     let tooClose = false;
     for (const [px, pz] of pathFlat) {
       const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
-      if (dist < 3.5) {
+      if (dist < 4.0) {
         tooClose = true;
         break;
       }
     }
     if (tooClose) continue;
 
-    // Check if too close to spawn (within 16m of (0, 0, 5))
+    // Check if too close to spawn (within 18m of (0, 0, 5))
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 18) continue;
 
