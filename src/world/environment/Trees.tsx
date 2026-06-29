@@ -110,39 +110,41 @@ function buildForest(seed = 42): TreeInstance[] {
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
-    const treesPerSide = zone.countPerSide;
+    // Use the full count per zone (no longer split by side — 360° spread covers both)
+    const treesPerZone = zone.countPerSide;
 
-    for (let side = -1; side <= 1; side += 2) {
-      // Evenly distribute tree count across the path range
-      for (let i = 0; i < treesPerSide; i++) {
+    for (let i = 0; i < treesPerZone; i++) {
         // Pick a sample index within the zone (with jitter)
-        const sampleT = (i + 0.5) / treesPerSide; // 0 to 1
-        const jitter = (rng() - 0.5) / treesPerSide * 0.5;
+        const sampleT = (i + 0.5) / treesPerZone; // 0 to 1
+        const jitter = (rng() - 0.5) / treesPerZone * 0.5;
         const sampleIdx = Math.round(startIdx + (endIdx - startIdx) * (sampleT + jitter));
         const idx = Math.max(0, Math.min(pathPoints.length - 1, sampleIdx));
 
         const [pathX, pathZ] = pathPoints[idx];
 
-        // Offset perpendicular to path tangent at this sample
-        // (sample neighboring points to estimate tangent)
+        // Place trees in a 360° spread around the path point (not just
+        // perpendicular to tangent). This ensures trees are visible from
+        // ALL camera angles, not just when camera faces along the tangent.
+        // Tangent is used as a PREFERENCE bias (trees lean slightly forward
+        // of camera's typical viewing direction), but the spread is wide.
         const idxNext = Math.min(idx + 1, pathPoints.length - 1);
         const [pathXNext, pathZNext] = pathPoints[idxNext];
         const tangentX = pathXNext - pathX;
         const tangentZ = pathZNext - pathZ;
         const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
-        // Perpendicular: rotate tangent 90° (so cross product with up vector)
-        // left perpendicular: (-tangentZ, tangentX) / len
-        const perpX = -tangentZ / tangentLen;
-        const perpZ = tangentX / tangentLen;
 
-        // Enforce minimum corridor: trees must be at least MIN_CORRIDOR
-        // perpendicular from the path. The zone.sideSpread is the base distance;
-        // we add jitter but never go below the minimum corridor width.
-        // This guarantees "no branches in camera's face" — canopies stay clear.
+        // 360° spread: random angle, biased slightly along tangent direction
+        const baseAngle = rng() * Math.PI * 2;
+        const tangentAngle = Math.atan2(tangentZ, tangentX);
+        const angle = baseAngle * 0.6 + tangentAngle * 0.4;
+
+        // Distance from path center: respects MIN_CORRIDOR but allows
+        // trees all around (not just ±perpendicular)
         const minForZone = Math.max(zone.sideSpread, MIN_CORRIDOR);
-        const sideOffset = minForZone + rng() * 1.5;
-        const x = pathX + perpX * side * sideOffset;
-        const z = pathZ + perpZ * side * sideOffset;
+        const sideOffset = minForZone + rng() * 2.0;
+
+        const x = pathX + Math.cos(angle) * sideOffset;
+        const z = pathZ + Math.sin(angle) * sideOffset;
 
         // SAFETY CHECK: skip trees within SAFE_RADIUS of camera spawn
         // This is the ROOT FIX for "bushes blocking view at spawn"
@@ -179,7 +181,6 @@ function buildForest(seed = 42): TreeInstance[] {
           hueShift: (rng() - 0.5) * 0.1,
           isHero: zone.isHero,
         });
-      }
     }
   }
 
@@ -199,13 +200,13 @@ function buildBackgroundForest(seed = 43): TreeInstance[] {
   const rng = mulberry32(seed);
   const trees: TreeInstance[] = [];
 
-  // Area to cover: x in [-30, 30], z in [-90, 5]
+  // Area to cover: x in [-50, 50], z in [-110, 10]
   // This covers the entire path length + extends beyond to fill the background
-  const X_MIN = -30;
-  const X_MAX = 30;
-  const Z_MIN = -90;
-  const Z_MAX = 5;
-  const TOTAL = 300; // Scattered background trees
+  const X_MIN = -50;
+  const X_MAX = 50;
+  const Z_MIN = -110;
+  const Z_MAX = 10;
+  const TOTAL = 600; // Increased from 300: more distant trees to fill background
 
   // Sample the path curve at coarse intervals to get path positions
   const pathPoints = samplePathPoints(40);

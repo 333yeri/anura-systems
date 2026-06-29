@@ -37,7 +37,7 @@ interface BushInstance {
   color: [number, number, number];
 }
 
-const BUSH_COUNT = 500;
+const BUSH_COUNT = 900; // Increased from 500 for wider coverage area
 
 /**
  * Build a single bush cluster geometry — multiple deformed spheres
@@ -124,10 +124,11 @@ function buildBushes(seed = 44): BushInstance[] {
   const rng = mulberry32(seed);
   const bushes: BushInstance[] = [];
 
-  const X_MIN = -30;
-  const X_MAX = 30;
-  const Z_MIN = -90;
-  const Z_MAX = 5;
+  // Coverage area: same as background forest (wider for periphery fill)
+  const X_MIN = -50;
+  const X_MAX = 50;
+  const Z_MIN = -110;
+  const Z_MAX = 10;
 
   // Path keyframes (same as Path.tsx)
   const pathKeyframes: Array<[number, number]> = [
