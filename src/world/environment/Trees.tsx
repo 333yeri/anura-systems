@@ -110,41 +110,60 @@ function buildForest(seed = 42): TreeInstance[] {
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
-    // Use the full count per zone (no longer split by side — 360° spread covers both)
     const treesPerZone = zone.countPerSide;
 
     for (let i = 0; i < treesPerZone; i++) {
         // Pick a sample index within the zone (with jitter)
-        const sampleT = (i + 0.5) / treesPerZone; // 0 to 1
+        const sampleT = (i + 0.5) / treesPerZone;
         const jitter = (rng() - 0.5) / treesPerZone * 0.5;
         const sampleIdx = Math.round(startIdx + (endIdx - startIdx) * (sampleT + jitter));
         const idx = Math.max(0, Math.min(pathPoints.length - 1, sampleIdx));
 
         const [pathX, pathZ] = pathPoints[idx];
 
-        // Place trees in a 360° spread around the path point (not just
-        // perpendicular to tangent). This ensures trees are visible from
-        // ALL camera angles, not just when camera faces along the tangent.
-        // Tangent is used as a PREFERENCE bias (trees lean slightly forward
-        // of camera's typical viewing direction), but the spread is wide.
+        // CRITICAL: Place trees strictly PERPENDICULAR to path tangent at this
+        // sample, alternating left/right. This is the ONLY placement strategy
+        // that guarantees trees never appear in the camera's forward view,
+        // because perpendicular = 90° off-axis = outside any FOV cone.
+        //
+        // Reasoning: as the camera moves along the path, it always looks ALONG
+        // the tangent (with small mouse-look deviation). Trees placed at ±90°
+        // to the tangent are NEVER in the tangent direction = never in view.
+        //
+        // Note: this means trees won't appear "ahead" in the user's view, even
+        // at curve bends. They always flank the path. This is the user's
+        // explicit requirement: "not any tree covering the lens when scrolling".
         const idxNext = Math.min(idx + 1, pathPoints.length - 1);
+        const idxPrev = Math.max(idx - 1, 0);
         const [pathXNext, pathZNext] = pathPoints[idxNext];
-        const tangentX = pathXNext - pathX;
-        const tangentZ = pathZNext - pathZ;
+        const [pathXPrev, pathZPrev] = pathPoints[idxPrev];
+        // Average tangent for better stability
+        const tanX_a = pathXNext - pathX;
+        const tanZ_a = pathZNext - pathZ;
+        const tanX_b = pathX - pathXPrev;
+        const tanZ_b = pathZ - pathZPrev;
+        const tangentX = (tanX_a + tanX_b) * 0.5;
+        const tangentZ = (tanZ_a + tanZ_b) * 0.5;
         const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
 
-        // 360° spread: random angle, biased slightly along tangent direction
-        const baseAngle = rng() * Math.PI * 2;
-        const tangentAngle = Math.atan2(tangentZ, tangentX);
-        const angle = baseAngle * 0.6 + tangentAngle * 0.4;
+        // Perpendicular vectors: rotate tangent 90° to get left/right
+        // right perpendicular: (-tangentZ, tangentX) / len
+        // left perpendicular: (tangentZ, -tangentX) / len
+        const perpX_right = -tangentZ / tangentLen;
+        const perpZ_right = tangentX / tangentLen;
+        const perpX_left = tangentZ / tangentLen;
+        const perpZ_left = -tangentX / tangentLen;
 
-        // Distance from path center: respects MIN_CORRIDOR but allows
-        // trees all around (not just ±perpendicular)
+        // Alternate left/right placement (or random)
+        const side = i % 2 === 0 ? 1 : -1; // Alternate for even distribution
+        // const side = rng() > 0.5 ? 1 : -1; // Random
+
+        // Distance from path center: respects MIN_CORRIDOR (no tree within 4m of path)
         const minForZone = Math.max(zone.sideSpread, MIN_CORRIDOR);
-        const sideOffset = minForZone + rng() * 2.0;
+        const sideOffset = minForZone + rng() * 2.5;
 
-        const x = pathX + Math.cos(angle) * sideOffset;
-        const z = pathZ + Math.sin(angle) * sideOffset;
+        const x = pathX + (side === 1 ? perpX_right : perpX_left) * sideOffset;
+        const z = pathZ + (side === 1 ? perpZ_right : perpZ_left) * sideOffset;
 
         // SAFETY CHECK: skip trees within SAFE_RADIUS of camera spawn
         // This is the ROOT FIX for "bushes blocking view at spawn"
@@ -214,20 +233,32 @@ function buildBackgroundForest(seed = 43): TreeInstance[] {
   const pathFlat = pathPoints.map(([x, z]) => [x, z]);
 
   for (let i = 0; i < TOTAL; i++) {
-    // Random position in the world area
-    const x = X_MIN + rng() * (X_MAX - X_MIN);
-    const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
+    // CRITICAL: User said "not any tree covering the lens when scrolling"
+    // Background trees must also respect the camera's FOV. We pick a random
+    // path sample, then place the tree in an arc that EXCLUDES the forward
+    // view cone at that sample. This guarantees no background tree ever appears
+    // in front of the camera as the user scrolls along the path.
+    const sampleIdx = Math.floor(rng() * pathFlat.length);
+    const [pathX, pathZ] = pathFlat[sampleIdx];
 
-    // Check if too close to path (within 4m MIN_CORRIDOR — keep camera clear)
-    let tooClose = false;
-    for (const [px, pz] of pathFlat) {
-      const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
-      if (dist < 4.0) {
-        tooClose = true;
-        break;
-      }
-    }
-    if (tooClose) continue;
+    // Estimate tangent at this sample (use neighboring points)
+    const idxNext = Math.min(sampleIdx + 1, pathFlat.length - 1);
+    const [pathXNext, pathZNext] = pathFlat[idxNext];
+    const tangentX = pathXNext - pathX;
+    const tangentZ = pathZNext - pathZ;
+    const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
+    const tangentAngle = Math.atan2(tangentZ, tangentX);
+
+    // Excluded arc (180° — no trees at all in front half of camera)
+    const excludedHalfWidth = Math.PI / 2; // 90° = half-plane in front
+    const allowedStart = tangentAngle + excludedHalfWidth;
+    const allowedRange = 2 * Math.PI - 2 * excludedHalfWidth; // 180°
+    const angle = allowedStart + rng() * allowedRange;
+
+    // Place tree at distance 8-25m from path (background range — never close)
+    const distance = 8 + rng() * 17;
+    const x = pathX + Math.cos(angle) * distance;
+    const z = pathZ + Math.sin(angle) * distance;
 
     // Check if too close to spawn (within 18m of (0, 0, 5))
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);

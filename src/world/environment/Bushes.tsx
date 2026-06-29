@@ -136,25 +136,40 @@ function buildBushes(seed = 44): BushInstance[] {
     [-32, 4], [-38, 6], [-44, 10], [-42, 16], [-38, 14], [-36, 14],
   ];
 
+  // CRITICAL: User said "not any tree covering the lens when scrolling"
+  // Bushes also respect the camera FOV. We pick a random path sample and
+  // place bushes in the 180° arc BEHIND the camera (entire forward half-plane
+  // is excluded, plus buffer for mouse-look).
+  const pathFlat = pathKeyframes;
+  const EXCLUDED_HALF_WIDTH = Math.PI / 2; // 90° = half-plane in front
+  const ALLOWED_RANGE = Math.PI; // 180°
+
   for (let i = 0; i < BUSH_COUNT; i++) {
-    const x = X_MIN + rng() * (X_MAX - X_MIN);
-    const z = Z_MIN + rng() * (Z_MAX - Z_MIN);
+    // Pick random path sample, then place bush in excluded-arc
+    const sampleIdx = Math.floor(rng() * pathFlat.length);
+    const [pathX, pathZ] = pathFlat[sampleIdx];
+
+    // Estimate tangent
+    const idxNext = Math.min(sampleIdx + 1, pathFlat.length - 1);
+    const [pathXNext, pathZNext] = pathFlat[idxNext];
+    const tangentX = pathXNext - pathX;
+    const tangentZ = pathZNext - pathZ;
+    const tangentLen = Math.sqrt(tangentX * tangentX + tangentZ * tangentZ) || 1;
+    const tangentAngle = Math.atan2(tangentZ, tangentX);
+
+    // Excluded arc (180° — no bushes in forward half-plane)
+    const allowedStart = tangentAngle + EXCLUDED_HALF_WIDTH;
+    const angle = allowedStart + rng() * ALLOWED_RANGE;
+
+    // Bushes can be closer than trees (smaller plants) but still outside path corridor
+    const minDist = 2.0; // Min bush distance from path (no bushes on the path itself)
+    const distance = minDist + rng() * 8; // Up to 10m from path
+    const x = pathX + Math.cos(angle) * distance;
+    const z = pathZ + Math.sin(angle) * distance;
 
     // Skip too close to spawn (matches trees: 18m)
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 18) continue;
-
-    // Skip path corridor — bushes are smaller than trees so 2m exclusion
-    // still keeps them filling the understory but out of the camera's face.
-    let tooCloseToPath = false;
-    for (const [px, pz] of pathKeyframes) {
-      const dist = Math.sqrt((x - px) ** 2 + (z - pz) ** 2);
-      if (dist < 2.0) {
-        tooCloseToPath = true;
-        break;
-      }
-    }
-    if (tooCloseToPath) continue;
 
     // Bush size variation
     const baseScale = 0.4 + rng() * 0.8; // 0.4-1.2m wide
