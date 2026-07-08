@@ -161,9 +161,11 @@ function buildBushes(seed = 44): BushInstance[] {
     const allowedStart = tangentAngle + EXCLUDED_HALF_WIDTH;
     const angle = allowedStart + rng() * ALLOWED_RANGE;
 
-    // Bushes can be closer than trees (smaller plants) but still outside path corridor
-    const minDist = 2.0; // Min bush distance from path (no bushes on the path itself)
-    const distance = minDist + rng() * 8; // Up to 10m from path
+    // OVERGROWTH FIX: bushes were at 2-10m which crowded the camera.
+    // Now bushes are 6-20m from path. This keeps them visible in the
+    // periphery but out of the camera's immediate foreground.
+    const minDist = 6.0; // (was 2.0) — bushes no longer crowd the camera
+    const distance = minDist + rng() * 14; // Up to 20m from path
     const x = pathX + Math.cos(angle) * distance;
     const z = pathZ + Math.sin(angle) * distance;
 
@@ -171,8 +173,9 @@ function buildBushes(seed = 44): BushInstance[] {
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 18) continue;
 
-    // Bush size variation
-    const baseScale = 0.4 + rng() * 0.8; // 0.4-1.2m wide
+    // Bush size variation — slightly smaller than before (was 0.4-1.2m wide).
+    // Smaller bushes = less canopy reach toward camera.
+    const baseScale = 0.3 + rng() * 0.6; // 0.3-0.9m wide (was 0.4-1.2m)
     const widthVar = 0.9 + rng() * 0.3;
     const heightVar = 0.7 + rng() * 0.4;
     const depthVar = 0.85 + rng() * 0.3;

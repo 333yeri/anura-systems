@@ -103,10 +103,14 @@ function buildForest(seed = 42): TreeInstance[] {
   const SAFE_RADIUS = 18; // meters (was 16 — slightly bigger clear zone at spawn)
 
   // MIN CORRIDOR WIDTH — minimum perpendicular distance from path center
-  // to any tree. This is the "no branches in face" guarantee.
-  // 4.0m means tree trunks stay at least 4m from the path. With tree
-  // canopies reaching ~3m radius, branches stay ~1m from camera path.
-  const MIN_CORRIDOR = 4.0;
+  // to any tree trunk. This is the "no branches in face" guarantee.
+  // Trees have canopies ~3m radius, so a 6m corridor puts branches ~3m from
+  // camera path center — clearly peripheral, never covering the lens.
+  //
+  // OVERGROWTH FIX: was 4m, bumped to 6m. The previous value put tree canopies
+  // too close to the camera, causing the leaves-and-branches-everywhere
+  // issue at scroll 40-56%.
+  const MIN_CORRIDOR = 6.0;
 
   for (const zone of zones) {
     const [startIdx, endIdx] = zone.sampleRange;
