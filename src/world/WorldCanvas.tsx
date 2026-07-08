@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import World from './World';
 import Path, { ScrollCamera } from './environment/Path';
 import Bushes from './environment/Bushes';
+import Act4Props from './environment/Act4Props';
 
 function getScrollFromURL(): number {
   if (typeof window === 'undefined') return 0;
@@ -364,6 +365,7 @@ export default function WorldCanvas() {
         <World />
         <Path />
         <Bushes />
+        <Act4Props />
         <ScrollCamera scrollRef={scrollRef} />
         <ParallaxCamera />
         <DebugStateUpdater />
