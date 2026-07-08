@@ -32,6 +32,13 @@ const TREE_PATHS = [
   '/assets/models/tree__v05.glb',
 ];
 
+// ACT 4 CLEARING — module-scope so both buildForest and buildBackgroundForest
+// can reference it. Position matches ScrollCamera final keyframe (t=1.0).
+// Trees in the clearing area are completely excluded so we have a clean
+// stage for the fire + tent + log + Yeri (M7 + M6).
+const ACT4_CENTER = { x: 14, z: -36 };
+const ACT4_RADIUS = 9; // 9m radius clearing (~18m diameter, matches reference)
+
 // Preload all
 TREE_PATHS.forEach((p) => useGLTF.preload(p));
 
@@ -101,6 +108,9 @@ function buildForest(seed = 42): TreeInstance[] {
   // within SAFE_RADIUS of this point so they never block the spawn view.
   const CAMERA_SPAWN = { x: 0, y: 0, z: 5 };
   const SAFE_RADIUS = 18; // meters (was 16 — slightly bigger clear zone at spawn)
+
+  // Note: ACT4_CENTER and ACT4_RADIUS are declared at module scope
+  // (above) so both buildForest and buildBackgroundForest can use them.
 
   // MIN CORRIDOR WIDTH — minimum perpendicular distance from path center
   // to any tree trunk. This is the "no branches in face" guarantee.
@@ -176,6 +186,14 @@ function buildForest(seed = 42): TreeInstance[] {
         );
         if (distToSpawn < SAFE_RADIUS) {
           continue; // Skip this tree — too close to camera spawn
+        }
+
+        // ACT 4 CLEARING: skip trees within Act 4 area (clean stage for M6/M7)
+        const distToAct4 = Math.sqrt(
+          (x - ACT4_CENTER.x) ** 2 + (z - ACT4_CENTER.z) ** 2
+        );
+        if (distToAct4 < ACT4_RADIUS) {
+          continue; // Skip — Act 4 clearing is reserved for fire/tent/Yeri
         }
 
         // Scale variation — note: GLOBAL_SCALE = 0.025, so per-instance
@@ -267,6 +285,12 @@ function buildBackgroundForest(seed = 43): TreeInstance[] {
     // Check if too close to spawn (within 18m of (0, 0, 5))
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 18) continue;
+
+    // ACT 4 CLEARING: skip background trees in the Act 4 area
+    const distToAct4 = Math.sqrt(
+      (x - ACT4_CENTER.x) ** 2 + (z - ACT4_CENTER.z) ** 2
+    );
+    if (distToAct4 < ACT4_RADIUS) continue;
 
     // Random scale (mostly smaller understory trees, some canopy)
     let scale: number;

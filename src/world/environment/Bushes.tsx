@@ -144,6 +144,11 @@ function buildBushes(seed = 44): BushInstance[] {
   const EXCLUDED_HALF_WIDTH = Math.PI / 2; // 90° = half-plane in front
   const ALLOWED_RANGE = Math.PI; // 180°
 
+  // ACT 4 CLEARING: same exclusion as trees — keep bushes out of the
+  // cozy clearing area reserved for M6 (Yeri) and M7 (fire/tent/log).
+  const ACT4_CENTER = { x: 14, z: -36 };
+  const ACT4_RADIUS = 9;
+
   for (let i = 0; i < BUSH_COUNT; i++) {
     // Pick random path sample, then place bush in excluded-arc
     const sampleIdx = Math.floor(rng() * pathFlat.length);
@@ -172,6 +177,12 @@ function buildBushes(seed = 44): BushInstance[] {
     // Skip too close to spawn (matches trees: 18m)
     const distToSpawn = Math.sqrt(x * x + (z - 5) ** 2);
     if (distToSpawn < 18) continue;
+
+    // ACT 4 CLEARING: skip bushes in the cozy clearing
+    const distToAct4 = Math.sqrt(
+      (x - ACT4_CENTER.x) ** 2 + (z - ACT4_CENTER.z) ** 2
+    );
+    if (distToAct4 < ACT4_RADIUS) continue;
 
     // Bush size variation — slightly smaller than before (was 0.4-1.2m wide).
     // Smaller bushes = less canopy reach toward camera.

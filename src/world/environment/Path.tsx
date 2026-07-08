@@ -232,10 +232,11 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
   useFrame(() => {
     const t = scrollRef.current;
 
-    // Only update camera when scroll has actually changed.
-    // This prevents continuous auto-play — the camera holds still until
-    // the user scrolls. The user explicitly controls the journey.
-    if (t === lastScroll.current) return;
+    // Always update camera each frame (no early-return). Damping toward
+    // target is applied per-frame so the camera converges naturally.
+    // The previous early-return logic left the camera at partially-damped
+    // position when scroll didn't change, but the damping needs to continue
+    // even after scroll stops to reach the target.
     lastScroll.current = t;
 
     const curve = buildCurve();
@@ -269,10 +270,9 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     const look = pos.clone().add(tangent.clone().multiplyScalar(5));
     look.y = pos.y;
 
-    // Light dampening (0.5 = ~50% of remaining distance per change).
-    // Tighter than before — camera doesn't drift continuously.
-    // The user-driven scroll directly controls position; the damp just
-    // smooths the transition between scroll events.
+    // Damping factor 0.5 means each frame moves halfway to target.
+    // After many frames this converges. We need this to run every frame
+    // for the camera to actually reach the target.
     lastPos.current = [
       THREE.MathUtils.lerp(lastPos.current[0], pos.x, 0.5),
       THREE.MathUtils.lerp(lastPos.current[1], pos.y, 0.5),
@@ -287,9 +287,7 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     camera.position.set(...lastPos.current);
     camera.lookAt(...lastLook.current);
 
-    // CRITICAL: Write scroll camera's INTENDED rotation to the global shared ref.
-    // This is what ParallaxCamera reads to apply mouse-look on top, WITHOUT
-    // carrying forward the previous frame's parallax offset (which would cause drift).
+    // Write scroll camera's INTENDED rotation to the global shared ref.
     scrollIntendedQuat.current.copy(camera.quaternion);
 
     if (onPositionChange) {
