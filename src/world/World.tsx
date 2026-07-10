@@ -155,7 +155,12 @@ function Moon() {
   // Camera at (0, 1.6, 6) fov 50 looking -Z.
   // At distance ~50, fov half-height = tan(25°) * 50 ≈ 23.
   // Upper portion: y ≈ 15-18 above camera (absolute y=17-20).
-  const moonPos: [number, number, number] = [0, 18, -50];
+  //
+  // For the Act 4 hero shot, the moon needs to be visible from camera at
+  // (14, 1.6, -36) looking at (14, 1.4, -28). With camera looking +Z, the
+  // moon should be ahead (+Z direction, z > -36) and high (y > 5).
+  // Position (14, 18, -22) places moon above the clearing.
+  const moonPos: [number, number, number] = [14, 18, -22];
   const moonScale = 2.8; // ~10% viewport at distance ~50
 
   return (

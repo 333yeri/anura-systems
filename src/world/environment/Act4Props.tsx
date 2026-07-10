@@ -43,11 +43,14 @@ import * as THREE from 'three';
 // ACT 4 world position — matches ScrollCamera t=1.0 keyframe
 const ACT4_CENTER = { x: 14, z: -36 };
 
-// Prop positions (relative to ACT4_CENTER)
-const FIRE_POS = new THREE.Vector3(ACT4_CENTER.x + 0, 0, ACT4_CENTER.z + 4);   // directly ahead of camera
-const LOG_POS  = new THREE.Vector3(ACT4_CENTER.x - 2, 0, ACT4_CENTER.z + 6);   // to the LEFT of fire
-const TENT_POS = new THREE.Vector3(ACT4_CENTER.x + 3, 0, ACT4_CENTER.z + 4);   // to the RIGHT of fire
-const MUG_POS  = new THREE.Vector3(ACT4_CENTER.x + 1, 0, ACT4_CENTER.z + 5);   // near fire (right side)
+// Prop positions (relative to ACT4_CENTER).
+// IMPORTANT: From the camera's POV, +X in world maps to camera's LEFT.
+// So Yeri+log should be at +X (camera-left) and tent at -X (camera-right).
+// This matches the reference image (Yeri on the left, tent on the right).
+const FIRE_POS = new THREE.Vector3(ACT4_CENTER.x, 0, ACT4_CENTER.z + 4);        // directly ahead
+const LOG_POS  = new THREE.Vector3(ACT4_CENTER.x + 2, 0, ACT4_CENTER.z + 6);   // +X = camera LEFT (matches reference: log on left)
+const TENT_POS = new THREE.Vector3(ACT4_CENTER.x - 3, 0, ACT4_CENTER.z + 4);   // -X = camera RIGHT (matches reference: tent on right)
+const MUG_POS  = new THREE.Vector3(ACT4_CENTER.x - 1, 0, ACT4_CENTER.z + 5);   // -X (camera right) between fire and tent
 
 /**
  * The campfire — 3 logs in teepee formation + central flame mesh
