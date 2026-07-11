@@ -40,17 +40,21 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// ACT 4 world position — matches ScrollCamera t=1.0 keyframe
-const ACT4_CENTER = { x: 14, z: -36 };
-
-// Prop positions (relative to ACT4_CENTER).
+// ACT 4 world position — matches ScrollCamera t=1.0 keyframe.
+// Camera at (12.5, 1.55, -38.5) looking at (14.5, 1.0, -32.0) — looking DOWN.
+// So objects "in front" of camera are at z > -38.5 (more positive z).
+// Camera looks toward +X (14.5 > 12.5) and +Z (less negative).
 // IMPORTANT: From the camera's POV, +X in world maps to camera's LEFT.
 // So Yeri+log should be at +X (camera-left) and tent at -X (camera-right).
-// This matches the reference image (Yeri on the left, tent on the right).
-const FIRE_POS = new THREE.Vector3(ACT4_CENTER.x, 0, ACT4_CENTER.z + 4);        // directly ahead
-const LOG_POS  = new THREE.Vector3(ACT4_CENTER.x + 2, 0, ACT4_CENTER.z + 6);   // +X = camera LEFT (matches reference: log on left)
-const TENT_POS = new THREE.Vector3(ACT4_CENTER.x - 3, 0, ACT4_CENTER.z + 4);   // -X = camera RIGHT (matches reference: tent on right)
-const MUG_POS  = new THREE.Vector3(ACT4_CENTER.x - 1, 0, ACT4_CENTER.z + 5);   // -X (camera right) between fire and tent
+const ACT4_CENTER = { x: 14, z: -33 }; // forward of camera at z=-38.5
+
+// Prop positions. Fire is the focal point — slightly raised so the flames
+// are at eye level. Fire is ~5m from camera (just in front).
+// +X is camera-LEFT, -X is camera-RIGHT.
+const FIRE_POS = new THREE.Vector3(ACT4_CENTER.x, 0.3, ACT4_CENTER.z);   // center, slightly raised
+const LOG_POS  = new THREE.Vector3(ACT4_CENTER.x + 2.5, 0, ACT4_CENTER.z + 0.5);  // +X = camera LEFT (log seat)
+const TENT_POS = new THREE.Vector3(ACT4_CENTER.x - 2.5, 0, ACT4_CENTER.z - 1);  // -X = camera RIGHT (tent behind fire)
+const MUG_POS  = new THREE.Vector3(ACT4_CENTER.x - 1, 0, ACT4_CENTER.z);  // -X between fire and tent
 
 /**
  * The campfire — 3 logs in teepee formation + central flame mesh

@@ -71,35 +71,61 @@ import { scrollIntendedQuat } from '../WorldCanvas';
 // CRITICAL: At end, camera must face into Act 4 — not loop back.
 // The 90° turn reveals Act 4 (was hidden by dense jungle).
 
+// PATH KEYFRAMES — designed to look like a WILD JUNGLE TRAIL, not a road.
+// Key principles:
+// 1. Y values vary slightly (1.45-1.75) to suggest uneven ground
+// 2. Slight Y offset in lookAt (1.3-1.7) so view tilts up/down with terrain
+// 3. Non-integer coordinates for organic feel
+// 4. Dense keyframes in dense zones (every 4-6% scroll) for smooth curves
+// 5. Wider turns — no sharp 90° angles
+// 6. Catmull-Rom interpolation smooths between keyframes
 export const PATH_KEYFRAMES: Array<{ pos: [number, number, number]; lookAt: [number, number, number]; t: number; label: string }> = [
-  // Act 3 entry — open forest, clear sky
-  { t: 0.00, pos: [0, 1.6, 5],     lookAt: [1, 1.6, 2],   label: 'frog spawn / Act 3 start' }, // Camera starts 5m BEHIND spawn point
-  { t: 0.06, pos: [1.0, 1.6, 2],   lookAt: [2.5, 1.6, -2], label: 'enter jungle — first turn right' },
+  // Act 3 entry — open forest, clear sky. Camera 5m behind spawn point.
+  // Y starts slightly higher, dips down to path level.
+  { t: 0.00, pos: [0.0, 1.7, 5.2],     lookAt: [0.8, 1.55, 2.5],   label: 'frog spawn / Act 3 start' },
+  { t: 0.04, pos: [0.4, 1.65, 3.8],    lookAt: [1.4, 1.5, 1.5],    label: 'stepping onto path' },
+  { t: 0.08, pos: [0.9, 1.6, 2.3],     lookAt: [2.0, 1.55, 0.5],   label: 'entering first curve' },
+  { t: 0.12, pos: [1.6, 1.55, 0.8],    lookAt: [2.8, 1.5, -1.0],   label: 'gentle bend right' },
+  { t: 0.16, pos: [2.4, 1.5, -0.8],    lookAt: [3.8, 1.55, -2.8],  label: 'curve continues' },
 
-  // Snake bend 1: curve RIGHT then back LEFT (clear S)
-  { t: 0.18, pos: [3, 1.6, -2],    lookAt: [6, 1.6, -6], label: 'snake right 1' },
-  { t: 0.30, pos: [5, 1.6, -7],    lookAt: [3, 1.6, -13], label: 'snake back-left 1' },
+  // Snake bend 1: curve RIGHT then back LEFT. Y dips and rises.
+  { t: 0.20, pos: [3.2, 1.55, -2.7],   lookAt: [4.4, 1.5, -4.5],   label: 'snake right 1 start' },
+  { t: 0.24, pos: [4.0, 1.5, -4.5],    lookAt: [4.6, 1.55, -6.2],  label: 'snake right 1 mid' },
+  { t: 0.28, pos: [4.5, 1.55, -6.3],   lookAt: [4.2, 1.5, -8.0],   label: 'snake right 1 peak' },
+  { t: 0.32, pos: [4.6, 1.5, -8.0],    lookAt: [3.8, 1.55, -9.8],  label: 'snake curving back' },
+  { t: 0.36, pos: [4.0, 1.55, -10.0],  lookAt: [2.6, 1.5, -11.8],  label: 'snake back-left 1' },
 
-  // Snake bend 2: curve LEFT then back RIGHT
-  { t: 0.42, pos: [-1, 1.6, -14],  lookAt: [-5, 1.6, -18], label: 'snake left 2' },
-  { t: 0.54, pos: [-6, 1.6, -19],  lookAt: [-2, 1.6, -25], label: 'snake back-right 2' },
+  // Snake bend 2: curve LEFT then back RIGHT. Lower Y for the "valley" feel.
+  { t: 0.40, pos: [2.4, 1.6, -12.2],   lookAt: [0.6, 1.5, -13.0],  label: 'snake left 2 start' },
+  { t: 0.44, pos: [0.4, 1.55, -13.5],  lookAt: [-1.8, 1.5, -14.5], label: 'snake left 2 deep' },
+  { t: 0.48, pos: [-2.2, 1.5, -15.0],  lookAt: [-4.0, 1.55, -15.8], label: 'snake left 2 peak' },
+  { t: 0.52, pos: [-4.2, 1.55, -16.5], lookAt: [-4.8, 1.5, -18.2], label: 'snake curving back' },
+  { t: 0.56, pos: [-4.8, 1.5, -18.5],  lookAt: [-4.0, 1.55, -20.5], label: 'snake back-right 2' },
+  { t: 0.60, pos: [-3.8, 1.55, -20.8], lookAt: [-2.2, 1.5, -22.5], label: 'snake back-right 2 mid' },
 
-  // Snake bend 3: curve RIGHT then back LEFT
-  { t: 0.66, pos: [4, 1.6, -26],   lookAt: [8, 1.6, -30], label: 'snake right 3' },
-  { t: 0.78, pos: [6, 1.6, -32],   lookAt: [3, 1.6, -36], label: 'snake back-left 3' },
+  // Snake bend 3: curve RIGHT then back LEFT. Slight Y rise.
+  { t: 0.64, pos: [-1.5, 1.5, -23.0],  lookAt: [0.4, 1.55, -24.0], label: 'snake right 3 start' },
+  { t: 0.68, pos: [0.8, 1.55, -24.5],  lookAt: [2.6, 1.5, -25.5], label: 'snake right 3 mid' },
+  { t: 0.72, pos: [3.0, 1.5, -26.0],  lookAt: [4.6, 1.55, -27.5], label: 'snake right 3 peak' },
+  { t: 0.76, pos: [4.8, 1.55, -28.2],  lookAt: [5.2, 1.5, -30.0], label: 'snake curving back' },
+  { t: 0.80, pos: [5.0, 1.5, -30.5],  lookAt: [4.0, 1.55, -32.2], label: 'snake back-left 3' },
+  { t: 0.84, pos: [3.4, 1.55, -33.0], lookAt: [1.8, 1.5, -34.2], label: 'snake back-left 3 mid' },
 
-  // Pre-turn approach — straighten path to set up the 90°
-  { t: 0.85, pos: [0, 1.6, -38],   lookAt: [4, 1.6, -42], label: 'approaching the turn' },
+  // Pre-turn approach — gentle curve, slight Y rise to a small rise
+  { t: 0.87, pos: [1.2, 1.5, -35.0],  lookAt: [0.4, 1.55, -37.0], label: 'approaching the rise' },
+  { t: 0.90, pos: [0.0, 1.5, -37.5],  lookAt: [1.5, 1.5, -40.0], label: 'at the rise' },
 
-  // 90° RIGHT TURN — the camera turns to face into Act 4
-  // Position rotates around a pivot point to make a clean corner.
-  // Before turn: facing -Z (forward). After turn: facing +X (right).
-  { t: 0.92, pos: [6, 1.6, -44],   lookAt: [10, 1.6, -42], label: '90° turn start' },
-  { t: 0.96, pos: [10, 1.6, -42],  lookAt: [14, 1.6, -38], label: '90° turn mid' },
-  { t: 0.99, pos: [14, 1.6, -38],  lookAt: [16, 1.6, -32], label: '90° turn complete — Act 4 revealed' },
+  // 90° turn — SMOOTH, not sharp. Camera arcs around a wider pivot.
+  // Y stays around 1.5 throughout the turn (no dramatic up/down).
+  { t: 0.93, pos: [2.5, 1.5, -41.5],  lookAt: [4.8, 1.5, -42.0], label: 'turn arc start' },
+  { t: 0.96, pos: [5.8, 1.5, -43.0],  lookAt: [8.5, 1.5, -42.0], label: 'turn arc mid' },
+  { t: 0.99, pos: [9.5, 1.5, -41.0],  lookAt: [12.0, 1.5, -38.0], label: 'turn arc complete' },
 
-  // Act 4 final — camera settled, looking down the path into the clearing
-  { t: 1.00, pos: [14, 1.6, -36],  lookAt: [14, 1.4, -28], label: 'Act 4 settled — fire + Yeri + moon' },
+  // Act 4 final — camera settled, looking down at the cozy scene.
+  // Y slightly lower (1.55) for a more grounded feel.
+  // Lookat Y=1.0 (lower than camera) so view tilts DOWN toward the fire
+  // and Yeri at ground level — like looking at a campfire while sitting.
+  { t: 1.00, pos: [12.5, 1.55, -38.5], lookAt: [14.5, 1.0, -32.0], label: 'Act 4 settled — fire + Yeri + moon' },
 ];
 // Build the curve from keyframes
 function buildCurve(): THREE.CatmullRomCurve3 {
@@ -262,7 +288,13 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     const curveT = THREE.MathUtils.clamp(t, 0, 1);
     const tangent = curve.getTangentAt(curveT);
     const look = pos.clone().add(tangent.clone().multiplyScalar(5));
-    look.y = pos.y;
+
+    // Tilt the camera DOWN at Act 4 so the fire and props at ground level
+    // are in the central view (not at the bottom edge). The lookat's Y is
+    // 0.55m below the camera's Y — a natural downward gaze like looking
+    // at a campfire. This ramps in over the last 10% of the scroll.
+    const lookDownFactor = Math.max(0, (t - 0.90) / 0.10); // 0 before 90%, 1 after 100%
+    look.y = pos.y - 0.55 * lookDownFactor;
 
     // INSTANT position update (no damping).
     // User feedback: "fix the camera path scroll and why it wiggles"

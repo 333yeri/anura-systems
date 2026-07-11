@@ -157,10 +157,13 @@ function Moon() {
   // Upper portion: y ≈ 15-18 above camera (absolute y=17-20).
   //
   // For the Act 4 hero shot, the moon needs to be visible from camera at
-  // (14, 1.6, -36) looking at (14, 1.4, -28). With camera looking +Z, the
-  // moon should be ahead (+Z direction, z > -36) and high (y > 5).
-  // Position (14, 18, -22) places moon above the clearing.
-  const moonPos: [number, number, number] = [14, 18, -22];
+  // (12.5, 1.55, -38.5) looking at (14.5, 1.5, -32.0). With camera looking
+  // in the +Z direction (and slightly +X), the moon should be ahead
+  // (+Z direction, z > -38.5) and high (y > 5). The new keyframe has
+  // the camera looking toward (14.5, 1.5, -32.0), so the moon should be
+  // above the clearing at roughly (12, 16, -28) — above the path to the
+  // Act 4 fire, visible in the upper portion of the camera's view.
+  const moonPos: [number, number, number] = [12, 16, -28];
   const moonScale = 2.8; // ~10% viewport at distance ~50
 
   return (

@@ -146,7 +146,7 @@ function buildBushes(seed = 44): BushInstance[] {
 
   // ACT 4 CLEARING: same exclusion as trees — keep bushes out of the
   // cozy clearing area reserved for M6 (Yeri) and M7 (fire/tent/log).
-  const ACT4_CENTER = { x: 14, z: -36 };
+  const ACT4_CENTER = { x: 13, z: -34 };
   const ACT4_RADIUS = 9;
 
   for (let i = 0; i < BUSH_COUNT; i++) {

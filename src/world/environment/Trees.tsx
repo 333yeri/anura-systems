@@ -36,7 +36,7 @@ const TREE_PATHS = [
 // can reference it. Position matches ScrollCamera final keyframe (t=1.0).
 // Trees in the clearing area are completely excluded so we have a clean
 // stage for the fire + tent + log + Yeri (M7 + M6).
-const ACT4_CENTER = { x: 14, z: -36 };
+const ACT4_CENTER = { x: 13, z: -34 };
 const ACT4_RADIUS = 9; // 9m radius clearing (~18m diameter, matches reference)
 
 // Preload all
