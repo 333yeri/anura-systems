@@ -231,12 +231,6 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
 
   useFrame(() => {
     const t = scrollRef.current;
-
-    // Always update camera each frame (no early-return). Damping toward
-    // target is applied per-frame so the camera converges naturally.
-    // The previous early-return logic left the camera at partially-damped
-    // position when scroll didn't change, but the damping needs to continue
-    // even after scroll stops to reach the target.
     lastScroll.current = t;
 
     const curve = buildCurve();
@@ -259,36 +253,38 @@ export function ScrollCamera({ scrollRef, onPositionChange }: ScrollCameraProps)
     // Smooth easing for cinematic feel between keyframes
     const eased = localT * localT * (3 - 2 * localT);  // smoothstep
 
-    // Interpolate position
+    // Interpolate position (no Y bob — keeps camera stable)
     const pos = new THREE.Vector3().lerpVectors(k0.pos, k1.pos, eased);
-    // Slight Y bob for organic motion
-    pos.y += Math.sin(t * Math.PI * 6) * 0.05;
 
-    // Compute lookAt from the actual curve tangent at this point
+    // Compute the INTENDED look direction from the curve tangent
+    // (this is what the camera "should" look at — the user's parallax
+    //  is added on top of this in ParallaxCamera)
     const curveT = THREE.MathUtils.clamp(t, 0, 1);
     const tangent = curve.getTangentAt(curveT);
     const look = pos.clone().add(tangent.clone().multiplyScalar(5));
     look.y = pos.y;
 
-    // Damping factor 0.5 means each frame moves halfway to target.
-    // After many frames this converges. We need this to run every frame
-    // for the camera to actually reach the target.
-    lastPos.current = [
-      THREE.MathUtils.lerp(lastPos.current[0], pos.x, 0.5),
-      THREE.MathUtils.lerp(lastPos.current[1], pos.y, 0.5),
-      THREE.MathUtils.lerp(lastPos.current[2], pos.z, 0.5),
-    ];
-    lastLook.current = [
-      THREE.MathUtils.lerp(lastLook.current[0], look.x, 0.5),
-      THREE.MathUtils.lerp(lastLook.current[1], look.y, 0.5),
-      THREE.MathUtils.lerp(lastLook.current[2], look.z, 0.5),
-    ];
+    // INSTANT position update (no damping).
+    // User feedback: "fix the camera path scroll and why it wiggles"
+    // Damping at 0.5 takes many seconds to converge, which caused the
+    // wiggle/wobble when the user scrolled. Setting position instantly
+    // means the camera is always exactly at the path keyframe.
+    lastPos.current = [pos.x, pos.y, pos.z];
+    lastLook.current = [look.x, look.y, look.z];
 
     camera.position.set(...lastPos.current);
-    camera.lookAt(...lastLook.current);
 
-    // Write scroll camera's INTENDED rotation to the global shared ref.
-    scrollIntendedQuat.current.copy(camera.quaternion);
+    // DON'T call camera.lookAt() — the user's mouse-look (ParallaxCamera)
+    // controls the look direction. We only update scrollIntendedQuat
+    // for the parallax base. To compute the intended rotation without
+    // overwriting the user's mouse rotation, we use a temporary
+    // quaternion that points toward the curve tangent.
+    const tempMatrix = new THREE.Matrix4().lookAt(
+      camera.position,
+      new THREE.Vector3(...lastLook.current),
+      new THREE.Vector3(0, 1, 0)
+    );
+    scrollIntendedQuat.current.setFromRotationMatrix(tempMatrix);
 
     if (onPositionChange) {
       onPositionChange(lastPos.current, lastLook.current);
